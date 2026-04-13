@@ -17,9 +17,9 @@ from shapely.prepared import prep
 
 from pyproj import CRS, Transformer
 
-import convert
-from constants import Transformation, TransformationSD
-import transform
+import geodepy.convert as convert
+from geodepy.constants import Transformation, TransformationSD
+import geodepy.transform as transform
 
 PLATE_ID_RE = re.compile(r"^[A-Z]{2}$")
 

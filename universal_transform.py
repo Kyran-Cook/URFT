@@ -10,9 +10,9 @@ from datetime import date
 import numpy as np
 import datetime
 
-import transform as tr
-import constants as gc
-import convert as con
+import geodepy.transform as tr
+import geodepy.constants as gc
+import geodepy.convert as con
 import point_in_polygon as pp
 
 # Setup for transformation paths
@@ -582,9 +582,9 @@ def universal_transform(x, y, z, from_ref, to_ref, from_epoch=None, to_epoch=Non
         lat, lon, el_height = con.xyz2llh(x, y, z)        
         hem, zone, east, north, psf, converge = con.geo2grid(lat, lon)
         output["coords"] = {
-            "east": east,
-            "north": north,
-            "height": el_height,
+            "east": round(east,4),
+            "north": round(north,4),
+            "height": round(el_height,4),
             "zone": zone
         }
     
@@ -680,9 +680,9 @@ def universal_transform_llh(lat, lon, el_height, from_ref, to_ref, from_epoch=No
         lat, lon, el_height = con.xyz2llh(x, y, z)        
         hem, zone, east, north, psf, converge = con.geo2grid(lat, lon)
         output["coords"] = {
-            "east": east,
-            "north": north,
-            "height": el_height,
+            "east": round(east,4),
+            "north": round(north,4),
+            "height": round(el_height,4),
             "zone": zone
         }
     
@@ -784,9 +784,9 @@ def universal_transform_enu(east, north, height, zone, from_ref, to_ref, from_ep
         lat, lon, el_height = con.xyz2llh(x, y, z)        
         hem, zone, east, north, psf, converge = con.geo2grid(lat, lon)
         output["coords"] = {
-            "east": east,
-            "north": north,
-            "height": el_height,
+            "east": round(east,4),
+            "north": round(north,4),
+            "height": round(el_height,4),
             "zone": zone
         }
     
