@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import universal_transform
+import csv
 
 from dataclasses import dataclass, field
 from typing import Literal, Optional, Union
@@ -20,6 +21,13 @@ from shapely.geometry import (
 )
 from shapely.geometry.base import BaseGeometry
 import geopandas as gpd
+
+from pathlib import Path
+from typing import Optional, Literal, Iterable, Union, List
+
+import geopandas as gpd
+import fiona
+from shapely.ops import transform as shapely_transform
 
 # This file will transform different file types between referene frames.
 # The supprted files types are as follows:
@@ -49,8 +57,9 @@ class TransformParams:
     plate_motion: str = "auto"      # "auto" | "aus"
     vcv: Optional[np.ndarray] = None
 
-    return_type: str = "xyz"         # "xyz" | "llh" | "enu"
+    return_type: str = None         # "xyz" | "llh" | "enu"
     ignore_errors: bool = False
+    angle_return_type: Optional[str] = None  # "dd" | "ddm" | "dms" (LLH output only)
 
     # -------------------
     # Validation
@@ -58,8 +67,8 @@ class TransformParams:
     def validate_basic(self):
         if self.plate_motion not in ("auto", "aus"):
             raise ValueError("plate_motion must be 'auto' or 'aus'")
-
-        if self.return_type.lower() not in ("xyz", "llh", "enu"):
+    
+        if self.return_type is not None and self.return_type.lower() not in ("xyz", "llh", "enu"):
             raise ValueError("return_type must be 'xyz', 'llh', or 'enu'")
 
         if self.vcv is not None:
@@ -209,6 +218,366 @@ class CSVCoordinateMapping:
                 "ENU mapping requires east, north, height, and zone columns"
             )
 
+def csv_transformation_xyz(df, csv_params, transform_params):
+    xs = df[csv_params.x].to_numpy(dtype=float)
+    ys = df[csv_params.y].to_numpy(dtype=float)
+    zs = df[csv_params.z].to_numpy(dtype=float)
+
+    kwargs = transform_params.to_kwargs()
+    return_type = transform_params.return_type.lower()
+    angle_return_type = transform_params.angle_return_type.lower() if transform_params.angle_return_type is not None else None
+
+    results = [
+        universal_transform.universal_transform(float(x), float(y), float(z), **kwargs)
+        for x, y, z in zip(xs, ys, zs)
+    ]
+    results = np.array(results)  # shape (N, 3) or (N, 6) with VCV
+
+    #create header array
+    header_arr = [None] * len(df.columns)
+    header_arr[csv_params.x] = "x"
+    header_arr[csv_params.y] = "y"
+    header_arr[csv_params.z] = "z"
+
+    #Make correct output for return type
+    if return_type == None or return_type == "xyz":
+
+        df[len(df.columns)] = [r["coords"]["x"] for r in results]
+        df[len(df.columns) + 1] = [r["coords"]["y"] for r in results]
+        df[len(df.columns) + 2] = [r["coords"]["z"] for r in results]
+
+        header_arr.append("x_transformed")
+        header_arr.append("y_transformed")
+        header_arr.append("z_transformed")
+
+
+    if return_type == "llh":
+
+        if angle_return_type == "dd":
+            df[len(df.columns)] = [r["coords"]["lat"] for r in results]
+            df[len(df.columns) + 1] = [r["coords"]["lon"] for r in results]
+            df[len(df.columns) + 2] = [r["coords"]["el_height"] for r in results]
+
+            header_arr.append("lat_transformed")
+            header_arr.append("lon_transformed")
+            header_arr.append("el_height_transformed")
+
+        if angle_return_type == "ddm":
+            def dd_to_ddm(dd):
+                deg = int(dd)
+                mins = abs(dd - deg) * 60
+                return deg, round(mins,5)
+
+            lat_ddm = [dd_to_ddm(r["coords"]["lat"]) for r in results]
+            lon_ddm = [dd_to_ddm(r["coords"]["lon"]) for r in results]
+
+            df[len(df.columns)] = [d[0] for d in lat_ddm]
+            df[len(df.columns) + 1] = [d[1] for d in lat_ddm]
+            df[len(df.columns) + 2] = [d[0] for d in lon_ddm]
+            df[len(df.columns) + 3] = [d[1] for d in lon_ddm]
+            df[len(df.columns) + 4] = [r["coords"]["el_height"] for r in results]
+
+            header_arr.append("lat_deg_transformed")
+            header_arr.append("lat_min_transformed")
+            header_arr.append("lon_deg_transformed")
+            header_arr.append("lon_min_transformed")
+            header_arr.append("el_height_transformed")
+
+        if angle_return_type == "dms":
+            def dd_to_dms(dd):
+                deg = int(dd)
+                remainder = abs(dd - deg) * 60
+                mins = int(remainder)
+                secs = (remainder - mins) * 60
+                return deg, mins, round(secs,4)
+
+            lat_dms = [dd_to_dms(r["coords"]["lat"]) for r in results]
+            lon_dms = [dd_to_dms(r["coords"]["lon"]) for r in results]
+
+            df[len(df.columns)] = [d[0] for d in lat_dms]
+            df[len(df.columns) + 1] = [d[1] for d in lat_dms]
+            df[len(df.columns) + 2] = [d[2] for d in lat_dms]
+            df[len(df.columns) + 3] = [d[0] for d in lon_dms]
+            df[len(df.columns) + 4] = [d[1] for d in lon_dms]
+            df[len(df.columns) + 5] = [d[2] for d in lon_dms]
+            df[len(df.columns) + 6] = [r["coords"]["el_height"] for r in results]
+
+            header_arr.append("lat_deg_transformed")
+            header_arr.append("lat_min_transformed")
+            header_arr.append("lat_sec_transformed")
+            header_arr.append("lon_deg_transformed")
+            header_arr.append("lon_min_transformed")
+            header_arr.append("lon_sec_transformed")
+            header_arr.append("el_height_transformed")
+
+    if return_type == "enu":
+
+        df[len(df.columns)] = [r["coords"]["east"] for r in results]
+        df[len(df.columns) + 1] = [r["coords"]["north"] for r in results]
+        df[len(df.columns) + 2] = [r["coords"]["el_height"] for r in results]
+        df[len(df.columns) + 3] = [r["coords"]["zone"] for r in results]
+
+        header_arr.append("east_transformed")
+        header_arr.append("north_transformed")
+        header_arr.append("el_height_transformed")
+        header_arr.append("zone_transformed")
+        
+    df.columns = header_arr
+    return df
+
+def csv_transformation_llh(df, csv_params, transform_params):
+    
+    angle_format = csv_params.angle_format.lower() if csv_params.angle_format is not None else None
+    angle_return_type = transform_params.angle_return_type.lower() if transform_params.angle_return_type is not None else None
+    kwargs = transform_params.to_kwargs()
+    return_type = transform_params.return_type.lower()
+
+    # Build decimal-degree lat/lon regardless of input angle format
+    if angle_format == "dd":
+        lats = df[csv_params.lat_deg].to_numpy(dtype=float)
+        lons = df[csv_params.lon_deg].to_numpy(dtype=float)
+
+    elif angle_format == "ddm":
+        lats = df[csv_params.lat_deg].to_numpy(dtype=float) + \
+                df[csv_params.lat_min].to_numpy(dtype=float) / 60.0
+        lons = df[csv_params.lon_deg].to_numpy(dtype=float) + \
+                df[csv_params.lon_min].to_numpy(dtype=float) / 60.0
+
+    elif angle_format == "dms":
+        lats = df[csv_params.lat_deg].to_numpy(dtype=float) + \
+                df[csv_params.lat_min].to_numpy(dtype=float) / 60.0 + \
+                df[csv_params.lat_sec].to_numpy(dtype=float) / 3600.0
+        lons = df[csv_params.lon_deg].to_numpy(dtype=float) + \
+                df[csv_params.lon_min].to_numpy(dtype=float) / 60.0 + \
+                df[csv_params.lon_sec].to_numpy(dtype=float) / 3600.0
+
+    heights = df[csv_params.el_height].to_numpy(dtype=float)
+
+    results = [
+                universal_transform.universal_transform_llh(float(lat), float(lon), float(h), **kwargs)
+                for lat, lon, h in zip(lats, lons, heights)
+            ]
+
+    # Create header array
+    header_arr = [None] * len(df.columns)
+    if angle_format == "dd":
+        header_arr[csv_params.lat_deg] = "lat"
+        header_arr[csv_params.lon_deg] = "lon"
+        header_arr[csv_params.el_height] = "el_height"
+    elif angle_format == "ddm":
+        header_arr[csv_params.lat_deg] = "lat_deg"
+        header_arr[csv_params.lat_min] = "lat_min"
+        header_arr[csv_params.lon_deg] = "lon_deg"
+        header_arr[csv_params.lon_min] = "lon_min"
+        header_arr[csv_params.el_height] = "el_height"
+    elif angle_format == "dms":
+        header_arr[csv_params.lat_deg] = "lat_deg"
+        header_arr[csv_params.lat_min] = "lat_min"
+        header_arr[csv_params.lat_sec] = "lat_sec"
+        header_arr[csv_params.lon_deg] = "lon_deg"
+        header_arr[csv_params.lon_min] = "lon_min"
+        header_arr[csv_params.lon_sec] = "lon_sec"
+        header_arr[csv_params.el_height] = "el_height"
+    else:
+        raise ValueError(
+            "angle_format must be one of: 'dd', 'ddm', 'dms'"
+        )
+    
+    #Make correct output for return type
+    if return_type == "xyz":
+
+        df[len(df.columns)] = [r["coords"]["x"] for r in results]
+        df[len(df.columns) + 1] = [r["coords"]["y"] for r in results]
+        df[len(df.columns) + 2] = [r["coords"]["z"] for r in results]
+
+        header_arr.append("x_transformed")
+        header_arr.append("y_transformed")
+        header_arr.append("z_transformed")
+
+
+    if return_type is None or return_type == "llh":
+
+        if angle_return_type == "dd":
+            df[len(df.columns)] = [r["coords"]["lat"] for r in results]
+            df[len(df.columns) + 1] = [r["coords"]["lon"] for r in results]
+            df[len(df.columns) + 2] = [r["coords"]["el_height"] for r in results]
+
+            header_arr.append("lat_transformed")
+            header_arr.append("lon_transformed")
+            header_arr.append("el_height_transformed")
+
+        if angle_return_type == "ddm":
+            def dd_to_ddm(dd):
+                deg = int(dd)
+                mins = abs(dd - deg) * 60
+                return deg, round(mins,5)
+
+            lat_ddm = [dd_to_ddm(r["coords"]["lat"]) for r in results]
+            lon_ddm = [dd_to_ddm(r["coords"]["lon"]) for r in results]
+
+            df[len(df.columns)] = [d[0] for d in lat_ddm]
+            df[len(df.columns) + 1] = [d[1] for d in lat_ddm]
+            df[len(df.columns) + 2] = [d[0] for d in lon_ddm]
+            df[len(df.columns) + 3] = [d[1] for d in lon_ddm]
+            df[len(df.columns) + 4] = [r["coords"]["el_height"] for r in results]
+
+            header_arr.append("lat_deg_transformed")
+            header_arr.append("lat_min_transformed")
+            header_arr.append("lon_deg_transformed")
+            header_arr.append("lon_min_transformed")
+            header_arr.append("el_height_transformed")
+
+        if angle_return_type == "dms":
+            def dd_to_dms(dd):
+                deg = int(dd)
+                remainder = abs(dd - deg) * 60
+                mins = int(remainder)
+                secs = (remainder - mins) * 60
+                return deg, mins, round(secs,4)
+
+            lat_dms = [dd_to_dms(r["coords"]["lat"]) for r in results]
+            lon_dms = [dd_to_dms(r["coords"]["lon"]) for r in results]
+
+            df[len(df.columns)] = [d[0] for d in lat_dms]
+            df[len(df.columns) + 1] = [d[1] for d in lat_dms]
+            df[len(df.columns) + 2] = [d[2] for d in lat_dms]
+            df[len(df.columns) + 3] = [d[0] for d in lon_dms]
+            df[len(df.columns) + 4] = [d[1] for d in lon_dms]
+            df[len(df.columns) + 5] = [d[2] for d in lon_dms]
+            df[len(df.columns) + 6] = [r["coords"]["el_height"] for r in results]
+
+            header_arr.append("lat_deg_transformed")
+            header_arr.append("lat_min_transformed")
+            header_arr.append("lat_sec_transformed")
+            header_arr.append("lon_deg_transformed")
+            header_arr.append("lon_min_transformed")
+            header_arr.append("lon_sec_transformed")
+            header_arr.append("el_height_transformed")
+
+    if return_type == "enu":
+
+        df[len(df.columns)] = [r["coords"]["east"] for r in results]
+        df[len(df.columns) + 1] = [r["coords"]["north"] for r in results]
+        df[len(df.columns) + 2] = [r["coords"]["el_height"] for r in results]
+        df[len(df.columns) + 3] = [r["coords"]["zone"] for r in results]
+
+        header_arr.append("east_transformed")
+        header_arr.append("north_transformed")
+        header_arr.append("el_height_transformed")
+        header_arr.append("zone_transformed")
+        
+    df.columns = header_arr
+    return df
+
+def csv_transformation_enu(df, csv_params, transform_params):
+        
+    angle_return_type = transform_params.angle_return_type.lower() if transform_params.angle_return_type is not None else None
+    kwargs = transform_params.to_kwargs()
+    return_type = transform_params.return_type.lower()
+        
+    easts  = df[csv_params.east].to_numpy(dtype=float)
+    norths = df[csv_params.north].to_numpy(dtype=float)
+    heights = df[csv_params.el_height].to_numpy(dtype=float)
+    zones  = df[csv_params.zone].to_numpy()
+
+    results = [
+        universal_transform.universal_transform_enu(float(e), float(n), float(h), int(z), **kwargs)
+        for e, n, h, z in zip(easts, norths, heights, zones)
+    ]
+    results = np.array(results)
+
+    # Create header array
+    header_arr = [None] * len(df.columns)
+    header_arr[csv_params.east] = "east"
+    header_arr[csv_params.north] = "north"
+    header_arr[csv_params.el_height] = "el_height"
+    header_arr[csv_params.zone] = "zone"
+
+    # Make correct output for return type
+    if return_type == "xyz":
+
+        df[len(df.columns)] = [r["coords"]["x"] for r in results]
+        df[len(df.columns) + 1] = [r["coords"]["y"] for r in results]
+        df[len(df.columns) + 2] = [r["coords"]["z"] for r in results]
+
+        header_arr.append("x_transformed")
+        header_arr.append("y_transformed")
+        header_arr.append("z_transformed")
+
+
+    if return_type == "llh":
+
+        if angle_return_type == "dd":
+            df[len(df.columns)] = [r["coords"]["lat"] for r in results]
+            df[len(df.columns) + 1] = [r["coords"]["lon"] for r in results]
+            df[len(df.columns) + 2] = [r["coords"]["el_height"] for r in results]
+
+            header_arr.append("lat_transformed")
+            header_arr.append("lon_transformed")
+            header_arr.append("el_height_transformed")
+
+        if angle_return_type == "ddm":
+            def dd_to_ddm(dd):
+                deg = int(dd)
+                mins = abs(dd - deg) * 60
+                return deg, round(mins,5)
+
+            lat_ddm = [dd_to_ddm(r["coords"]["lat"]) for r in results]
+            lon_ddm = [dd_to_ddm(r["coords"]["lon"]) for r in results]
+
+            df[len(df.columns)] = [d[0] for d in lat_ddm]
+            df[len(df.columns) + 1] = [d[1] for d in lat_ddm]
+            df[len(df.columns) + 2] = [d[0] for d in lon_ddm]
+            df[len(df.columns) + 3] = [d[1] for d in lon_ddm]
+            df[len(df.columns) + 4] = [r["coords"]["el_height"] for r in results]
+
+            header_arr.append("lat_deg_transformed")
+            header_arr.append("lat_min_transformed")
+            header_arr.append("lon_deg_transformed")
+            header_arr.append("lon_min_transformed")
+            header_arr.append("el_height_transformed")
+
+        if angle_return_type == "dms":
+            def dd_to_dms(dd):
+                deg = int(dd)
+                remainder = abs(dd - deg) * 60
+                mins = int(remainder)
+                secs = (remainder - mins) * 60
+                return deg, mins, round(secs,4)
+
+            lat_dms = [dd_to_dms(r["coords"]["lat"]) for r in results]
+            lon_dms = [dd_to_dms(r["coords"]["lon"]) for r in results]
+
+            df[len(df.columns)] = [d[0] for d in lat_dms]
+            df[len(df.columns) + 1] = [d[1] for d in lat_dms]
+            df[len(df.columns) + 2] = [d[2] for d in lat_dms]
+            df[len(df.columns) + 3] = [d[0] for d in lon_dms]
+            df[len(df.columns) + 4] = [d[1] for d in lon_dms]
+            df[len(df.columns) + 5] = [d[2] for d in lon_dms]
+            df[len(df.columns) + 6] = [r["coords"]["el_height"] for r in results]
+
+            header_arr.append("lat_deg_transformed")
+            header_arr.append("lat_min_transformed")
+            header_arr.append("lat_sec_transformed")
+            header_arr.append("lon_deg_transformed")
+            header_arr.append("lon_min_transformed")
+            header_arr.append("lon_sec_transformed")
+            header_arr.append("el_height_transformed")
+
+    if return_type is None or return_type == "enu":
+
+        df[len(df.columns)] = [r["coords"]["east"] for r in results]
+        df[len(df.columns) + 1] = [r["coords"]["north"] for r in results]
+        df[len(df.columns) + 2] = [r["coords"]["el_height"] for r in results]
+        df[len(df.columns) + 3] = [r["coords"]["zone"] for r in results]
+
+        header_arr.append("east_transformed")
+        header_arr.append("north_transformed")
+        header_arr.append("el_height_transformed")
+        header_arr.append("zone_transformed")
+        
+    df.columns = header_arr
+    return df
 
 def csv_transformation(file_path, csv_params, transform_params):
     
@@ -220,257 +589,298 @@ def csv_transformation(file_path, csv_params, transform_params):
     Returns the output file path.
     """
     
-    print(f"Transforming CSV file at {file_path} with params: {transform_params}")
+    #print(f"Transforming CSV file at {file_path} with params: {transform_params}")
     # Here you would read the CSV, apply transformations, and write the output
     csv_params.validate()
     transform_params.validate_basic()
 
     df = pd.read_csv(file_path, header=None)
-    kwargs = transform_params.to_kwargs()
     coord_type = csv_params.coord_type.lower()
 
     # --- Extract coordinates as numpy arrays ---
     if coord_type == "xyz":
-        xs = df[csv_params.x].to_numpy(dtype=float)
-        ys = df[csv_params.y].to_numpy(dtype=float)
-        zs = df[csv_params.z].to_numpy(dtype=float)
-
-        results = [
-            universal_transform.universal_transform(float(x), float(y), float(z), **kwargs)
-            for x, y, z in zip(xs, ys, zs)
-        ]
-        results = np.array(results)  # shape (N, 3) or (N, 6) with VCV
-
-        df[csv_params.x] = [r["coords"]["x"] for r in results]
-        df[csv_params.y] = [r["coords"]["y"] for r in results]
-        df[csv_params.z] = [r["coords"]["z"] for r in results]
+        df = csv_transformation_xyz(df, csv_params, transform_params)
 
     elif coord_type == "llh":
-        angle_format = csv_params.angle_format.lower()
-
-        # Build decimal-degree lat/lon regardless of input angle format
-        if angle_format == "dd":
-            lats = df[csv_params.lat_deg].to_numpy(dtype=float)
-            lons = df[csv_params.lon_deg].to_numpy(dtype=float)
-            
-            print(lats)
-            print(lons)
-
-        elif angle_format == "ddm":
-            lats = df[csv_params.lat_deg].to_numpy(dtype=float) + \
-                   df[csv_params.lat_min].to_numpy(dtype=float) / 60.0
-            lons = df[csv_params.lon_deg].to_numpy(dtype=float) + \
-                   df[csv_params.lon_min].to_numpy(dtype=float) / 60.0
-
-        elif angle_format == "dms":
-            lats = df[csv_params.lat_deg].to_numpy(dtype=float) + \
-                   df[csv_params.lat_min].to_numpy(dtype=float) / 60.0 + \
-                   df[csv_params.lat_sec].to_numpy(dtype=float) / 3600.0
-            lons = df[csv_params.lon_deg].to_numpy(dtype=float) + \
-                   df[csv_params.lon_min].to_numpy(dtype=float) / 60.0 + \
-                   df[csv_params.lon_sec].to_numpy(dtype=float) / 3600.0
-
-        heights = df[csv_params.el_height].to_numpy(dtype=float)
-
-        results = [
-                universal_transform.universal_transform_llh(float(lat), float(lon), float(h), **kwargs)
-                for lat, lon, h in zip(lats, lons, heights)
-            ]
-
-        out_lats = [r["coords"]["lat"] for r in results]
-        out_lons = [r["coords"]["lon"] for r in results]
-        out_heights = [r["coords"]["el_height"] for r in results]
-
-        df[csv_params.el_height] = out_heights
-
-        if angle_format == "dd":
-            df[csv_params.lat_deg] = out_lats
-            df[csv_params.lon_deg] = out_lons
-
-        elif angle_format == "ddm":
-            def dd_to_ddm(dd):
-                deg = int(dd)
-                mins = abs(dd - deg) * 60
-                return deg, round(mins,5)
-
-            lat_ddm = [dd_to_ddm(lat) for lat in out_lats]
-            lon_ddm = [dd_to_ddm(lon) for lon in out_lons]
-
-            df[csv_params.lat_deg] = [d[0] for d in lat_ddm]
-            df[csv_params.lat_min] = [d[1] for d in lat_ddm]
-            df[csv_params.lon_deg] = [d[0] for d in lon_ddm]
-            df[csv_params.lon_min] = [d[1] for d in lon_ddm]
-
-        elif angle_format == "dms":
-            def dd_to_dms(dd):
-                deg = int(dd)
-                remainder = abs(dd - deg) * 60
-                mins = int(remainder)
-                secs = (remainder - mins) * 60
-                return deg, mins, round(secs,4)
-
-            lat_dms = [dd_to_dms(lat) for lat in out_lats]
-            lon_dms = [dd_to_dms(lon) for lon in out_lons]
-
-            df[csv_params.lat_deg] = [d[0] for d in lat_dms]
-            df[csv_params.lat_min] = [d[1] for d in lat_dms]
-            df[csv_params.lat_sec] = [d[2] for d in lat_dms]
-            df[csv_params.lon_deg] = [d[0] for d in lon_dms]
-            df[csv_params.lon_min] = [d[1] for d in lon_dms]
-            df[csv_params.lon_sec] = [d[2] for d in lon_dms]
+        df = csv_transformation_llh(df, csv_params, transform_params)
 
     elif coord_type == "enu":
-        easts  = df[csv_params.east].to_numpy(dtype=float)
-        norths = df[csv_params.north].to_numpy(dtype=float)
-        heights = df[csv_params.el_height].to_numpy(dtype=float)
-        zones  = df[csv_params.zone].to_numpy()
-
-        results = [
-            universal_transform.universal_transform_enu(float(e), float(n), float(h), int(z), **kwargs)
-            for e, n, h, z in zip(easts, norths, heights, zones)
-        ]
-        results = np.array(results)
-
-        df[csv_params.east]   = [r["coords"]["east"]   for r in results]
-        df[csv_params.north]  = [r["coords"]["north"]  for r in results]
-        df[csv_params.el_height] = [r["coords"]["height"] for r in results]
-        df[csv_params.zone]   = [r["coords"]["zone"]   for r in results]
+        df = csv_transformation_enu(df, csv_params, transform_params)
 
     # --- Write output ---
-    input_path = Path(file_path)
+    input_path = Path(file_path.name)
     output_path = input_path.with_stem(input_path.stem + "_transformed")
-    df.to_csv(output_path, index=False, header=None)
+    df.to_csv(output_path, index=False)
 
     print(f"Transformed {len(df)} rows to: {output_path}")
     return str(output_path)
 
-# CRS lookup for common reference frames - extend as needed
-CRS_LOOKUP = {
-    "GDA2020":  "EPSG:7844",
-    "GDA94":    "EPSG:4283",
-    "ITRF2014": "EPSG:9000",
-    "WGS84":    "EPSG:4326",
-}
 
-def _get_coord_type(gdf: gpd.GeoDataFrame) -> str:
-    """Determine coordinate type from the GeoDataFrame's CRS."""
+
+# ---------------------------
+# Helpers
+# ---------------------------
+
+def _is_geographic_crs(gdf: gpd.GeoDataFrame) -> bool:
+    """True if CRS exists and is geographic (lat/lon)."""
     if gdf.crs is None:
-        raise ValueError("Shapefile has no CRS defined, cannot determine coordinate type.")
-    
-    if gdf.crs.is_geographic:
-        return "llh"
-    elif gdf.crs.is_projected:
-        return "enu"
-    else:
-        return "xyz"  # fallback for ECEF/cartesian
+        return False
+    try:
+        return bool(getattr(gdf.crs, "is_geographic", False))
+    except Exception:
+        return False
 
 
-def _transform_coords(coords, transform_func, coord_type):
-    """Transform a list of (x, y) or (x, y, z) coordinate tuples."""
-    transformed = []
-    for coord in coords:
-        if len(coord) == 2:
-            x, y = coord
-            z = 0.0
-        else:
-            x, y, z = coord
+def _list_layers(path: Union[str, Path]) -> List[str]:
+    """List layers for multi-layer datasets (e.g., GeoPackage)."""
+    try:
+        return list(fiona.listlayers(str(path)))
+    except Exception:
+        return []
 
-        if coord_type == "llh":
-            # Shapely stores (lon, lat) so swap to (lat, lon) for the function
-            result = transform_func(float(y), float(x), float(z))
-            c = result["coords"]
-            transformed.append((c["lon"], c["lat"], c["el_height"]))
 
-        elif coord_type == "enu":
-            result = transform_func(float(x), float(y), float(z))
-            c = result["coords"]
-            transformed.append((c["east"], c["north"], c["height"]))
+def _infer_mga_zone_from_epsg(epsg: Optional[int]) -> Optional[int]:
+    """
+    Best-effort inference for MGA zone from common EPSG patterns.
 
-        else:  # xyz
-            result = transform_func(float(x), float(y), float(z))
-            c = result["coords"]
-            transformed.append((c["x"], c["y"], c["z"]))
+    Examples:
+      - GDA94 / MGA zone 56  -> EPSG:28356 -> zone = 56
+      - GDA2020 / MGA zone 56 -> EPSG:7856 -> zone = 56
 
-    return transformed
+    Returns None if it can't infer.
+    """
+    if epsg is None:
+        return None
 
-def _transform_geometry(geom: BaseGeometry, transform_func) -> BaseGeometry:
-    if geom is None or geom.is_empty:
-        return geom
+    # GDA94 MGA zones: EPSG 28300 + zone (e.g., 28356 => 56)
+    if 28300 <= epsg <= 28399:
+        zone = epsg - 28300
+        if 1 <= zone <= 60:
+            return zone
 
-    if isinstance(geom, Point):
-        coords = list(geom.coords)
-        return Point(transform_func(*coords[0]))
+    # GDA2020 MGA zones: commonly EPSG 7800 + zone (e.g., 7856 => 56)
+    if 7800 <= epsg <= 7899:
+        zone = epsg - 7800
+        if 1 <= zone <= 60:
+            return zone
 
-    elif isinstance(geom, LineString):
-        return LineString([transform_func(*c) for c in geom.coords])
+    return None
 
-    elif isinstance(geom, Polygon):
-        exterior = [transform_func(*c) for c in geom.exterior.coords]
-        interiors = [
-            [transform_func(*c) for c in ring.coords]
-            for ring in geom.interiors
-        ]
-        return Polygon(exterior, interiors)
 
-    elif isinstance(geom, MultiPoint):
-        return MultiPoint([_transform_geometry(p, transform_func) for p in geom.geoms])
+# ---------------------------
+# Transform one GeoDataFrame
+# ---------------------------
 
-    elif isinstance(geom, MultiLineString):
-        return MultiLineString([_transform_geometry(l, transform_func) for l in geom.geoms])
+def transform_geodataframe(
+    gdf: gpd.GeoDataFrame,
+    transform_params: "TransformParams",
+    *,
+    coord_type: Literal["auto", "llh", "enu", "xyz"] = "auto",
+    height_default: float = 0.0,
+    zone: Optional[int] = None,
+    zone_from_crs: bool = True,
+    out_crs: Optional[str] = None,
+    default_if_unknown: Literal["llh", "enu"] = "enu",
+) -> gpd.GeoDataFrame:
+    """
+    Transform geometries in a GeoDataFrame using your Geodepy-based functions.
 
-    elif isinstance(geom, MultiPolygon):
-        return MultiPolygon([_transform_geometry(p, transform_func) for p in geom.geoms])
+    coord_type:
+      - "auto": geographic CRS -> llh, projected CRS -> enu, CRS missing -> default_if_unknown
+      - "llh" : interpret x=lon, y=lat (degrees)
+      - "enu" : interpret x=east, y=north (requires MGA zone)
+      - "xyz" : interpret x,y,z as geocentric XYZ (rare for GIS data)
 
-    elif isinstance(geom, GeometryCollection):
-        return GeometryCollection([_transform_geometry(g, transform_func) for g in geom.geoms])
-
-    else:
-        raise TypeError(f"Unsupported geometry type: {type(geom)}")
-
-def shp_transformation(file_path: str, transform_params: TransformParams) -> str:
+    out_crs:
+      Sets CRS metadata after transformation (does NOT reproject using pyproj).
+      Use this if you are doing a datum/ref-frame change and want to update the tag.
+    """
     transform_params.validate_basic()
     kwargs = transform_params.to_kwargs()
+    print(kwargs)
 
-    gdf = gpd.read_file(file_path)
-    coord_type = _get_coord_type(gdf)
+    gdf_out = gdf.copy()
+    print(gdf_out)
 
-    # Select the correct transform function based on input coord type
-    if coord_type == "llh":
-        def transform_func(lat, lon, h):
-            return universal_transform.universal_transform_llh(lat, lon, h, **kwargs)
+    # Decide coordinate interpretation
+    ct = coord_type.lower()
+    if ct == "auto":
+        if _is_geographic_crs(gdf_out):
+            ct = "llh"
+        elif gdf_out.crs is None:
+            ct = default_if_unknown
+        else:
+            ct = "enu"
 
-    elif coord_type == "enu":
-        def transform_func(e, n, h):
-            return universal_transform.universal_transform_enu(e, n, h, **kwargs)
+    # Determine MGA zone if ENU
+    used_zone = zone
+    if ct == "enu" and used_zone is None and zone_from_crs and gdf_out.crs is not None:
+        try:
+            epsg = gdf_out.crs.to_epsg()
+        except Exception:
+            epsg = None
+        used_zone = _infer_mga_zone_from_epsg(epsg)
 
-    else:
-        def transform_func(x, y, z):
-            return universal_transform.universal_transform(x, y, z, **kwargs)
-
-    gdf["geometry"] = gdf["geometry"].apply(
-        lambda geom: _transform_geometry(
-            geom,
-            lambda *c: _transform_coords([c], transform_func, coord_type)[0]
+    if ct == "enu" and used_zone is None:
+        raise ValueError(
+            "ENU transformation requires an MGA zone. Provide zone=..., "
+            "or ensure CRS EPSG allows inference (e.g., EPSG:28356 / EPSG:7856)."
         )
-    )
 
-    # Update CRS metadata if target reference is known
-    target_crs = CRS_LOOKUP.get(transform_params.to_ref)
-    if target_crs:
-        gdf = gdf.set_crs(target_crs, allow_override=True)
+    # Coordinate function for shapely.ops.transform
+    #
+    # Shapely/GIS coordinate order is (x, y) = (lon/east, lat/north)
+    # Your universal_transform_llh expects (lat, lon, h) -> so we swap x/y on input/output.
+    def _coord_func(x, y, z=None):
+        has_z = z is not None
+        h = float(z) if has_z else float(height_default)
+        x = float(x)
+        y = float(y)
+
+        if ct == "llh":
+            print(x, y)
+            res = universal_transform.universal_transform_llh(float(y), float(x), h, **kwargs)
+            print(res)
+            lon2 = res["coords"]["lon"]
+            lat2 = res["coords"]["lat"]
+            h2   = res["coords"]["el_height"]
+            return (lon2, lat2, h2) if has_z else (lon2, lat2)
+
+        if ct == "enu":
+            res = universal_transform.universal_transform_enu(float(x), float(y), h, int(used_zone), **kwargs)
+            e2 = res["coords"]["east"]
+            n2 = res["coords"]["north"]
+            h2 = res["coords"]["height"]
+            return (e2, n2, h2) if has_z else (e2, n2)
+
+        if ct == "xyz":
+            # xyz needs 3D; if missing Z, use height_default as best-effort Z
+            if z is None:
+                z = float(height_default)
+                has_z = True
+            res = universal_transform.universal_transform(float(x), float(y), float(z), **kwargs)
+            x2 = res["coords"]["x"]
+            y2 = res["coords"]["y"]
+            z2 = res["coords"]["z"]
+            return (x2, y2, z2) if has_z else (x2, y2)
+
+        raise ValueError("coord_type must be 'auto', 'llh', 'enu', or 'xyz'")
+
+    def _transform_geom(geom):
+        if geom is None or geom.is_empty:
+            return geom
+        return shapely_transform(_coord_func, geom)
+
+    gdf_out["geometry"] = gdf_out["geometry"].apply(_transform_geom)
+
+    # Update CRS metadata if requested (no reprojection performed)
+    if out_crs is not None:
+        gdf_out = gdf_out.set_crs(out_crs, allow_override=True)
+
+    return gdf_out
+
+
+# ---------------------------
+# Read/Write vector files
+# ---------------------------
+
+LayerSpec = Union[Literal["auto", "all"], str, Iterable[str], None]
+
+def transform_vector_file(
+    file_path: str,
+    transform_params: "TransformParams",
+    *,
+    coord_type: Literal["auto", "llh", "enu", "xyz"] = "auto",
+    height_default: float = 0.0,
+    zone: Optional[int] = None,
+    zone_from_crs: bool = True,
+    out_crs: Optional[str] = None,
+    layers: LayerSpec = "auto",
+    default_if_unknown: Literal["llh", "enu"] = "enu",
+) -> str:
+    """
+    Transform SHP, GeoJSON, or GeoPackage.
+
+    - SHP/GeoJSON: typically single-layer (layers ignored)
+    - GPKG: can have multiple layers:
+        layers="auto" -> all layers if multiple exist, else the default layer
+        layers="all"  -> all layers
+        layers="roads" or ["roads","parcels"] -> specific layer(s)
+
+    Writes output alongside input with suffix "_transformed".
+    Returns output path.
+    """
+    in_path = Path(file_path)
+    if not in_path.exists():
+        raise FileNotFoundError(file_path)
+
+    ext = in_path.suffix.lower()
+    supported = {".shp", ".geojson", ".json", ".gpkg"}
+    if ext not in supported:
+        raise ValueError(f"Unsupported file type '{ext}'. Supported: {sorted(supported)}")
+
+    out_path = in_path.with_name(in_path.stem + "_transformed" + in_path.suffix)
+
+    # --- SHP / GeoJSON (single layer) ---
+    if ext in {".shp", ".geojson", ".json"}:
+        gdf = gpd.read_file(in_path)
+        gdf_t = transform_geodataframe(
+            gdf,
+            transform_params,
+            coord_type=coord_type,
+            height_default=height_default,
+            zone=zone,
+            zone_from_crs=zone_from_crs,
+            out_crs=out_crs,
+            default_if_unknown=default_if_unknown,
+        )
+        gdf_t.to_file(out_path)  # driver inferred from extension
+        return str(out_path)
+
+    # --- GPKG (potentially multi-layer) ---
+    available_layers = _list_layers(in_path)
+
+    # Choose which layers to process
+    if layers in (None, "auto"):
+        layer_list = available_layers if len(available_layers) > 0 else [None]
+    elif layers == "all":
+        layer_list = available_layers if len(available_layers) > 0 else [None]
+    elif isinstance(layers, str):
+        layer_list = [layers]
     else:
-        print(f"Warning: CRS for '{transform_params.to_ref}' not in lookup table, metadata not updated.")
+        layer_list = list(layers)
 
-    output_path = Path(file_path).with_stem(Path(file_path).stem + "_transformed")
-    gdf.to_file(output_path)
+    # If output exists, remove it so we can write layers cleanly
+    if out_path.exists():
+        out_path.unlink()
 
-    print(f"Transformed {len(gdf)} features → {output_path}")
-    return str(output_path)
+    for i, lyr in enumerate(layer_list):
+        gdf = gpd.read_file(in_path, layer=lyr) if isinstance(lyr, str) else gpd.read_file(in_path)
+        gdf_t = transform_geodataframe(
+            gdf,
+            transform_params,
+            coord_type=coord_type,
+            height_default=height_default,
+            zone=zone,
+            zone_from_crs=zone_from_crs,
+            out_crs=out_crs,
+            default_if_unknown=default_if_unknown,
+        )
 
-params_xyz = TransformParams("ITRF2014", "GDA94", dt.date(2014,1,1), plate_motion="aus", return_type="xyz")
-params_llh = TransformParams("ITRF2014", "GDA94", dt.date(2014,1,1), plate_motion="aus", return_type="llh")
+        layer_name = lyr if isinstance(lyr, str) else "layer"
+        mode = "w" if i == 0 else "a"
+
+        # GeoPandas supports mode for GPKG in modern stacks.
+        # If your stack errors on mode, we can adjust (tell me your geopandas version).
+        gdf_t.to_file(out_path, layer=layer_name, driver="GPKG", mode=mode)
+
+    return str(out_path)
+
+
+params_xyz = TransformParams("ITRF2014", "MGA94", dt.date(2014,1,1), plate_motion="aus", return_type="enu")
+params_llh = TransformParams("ITRF2014", "GDA94", dt.date(2014,1,1), plate_motion="aus", return_type="xyz")
 params_enu = TransformParams("MGA94", "MGA2020", dt.date(2014,1,1), plate_motion="aus", return_type="enu")
-params_shp = TransformParams("ITRF2014", "GDA94", dt.date(2014,1,1), plate_motion="auto", ignore_errors=True)
+params_shp = TransformParams("ITRF2014", "GDA94", dt.date(2014,1,1), plate_motion="aus", ignore_errors=False)
 
 csv_xyz = CSVCoordinateMapping("xyz", None, 1, 2, 3)
 csv_llh_dd = CSVCoordinateMapping("llh", "dd", lat_deg=1,lon_deg=2,el_height=3)
@@ -483,9 +893,9 @@ csv_enu = CSVCoordinateMapping("enu", None, zone=1, east=2, north=3, el_height=4
 #out = universal_transform.universal_transform(-4130636.759, 2894953.142, -3890530.249, **params_xyz.to_kwargs())
 #print(out)
 
-#print(csv_transformation(r"C:\Users\User\Documents\Repositories\URFT\test_files\test_xyz.csv", csv_xyz, params_xyz))
-#print(csv_transformation(r"C:\Users\User\Documents\Repositories\URFT\test_files\test_llh_dd.csv", csv_llh_dd, params_llh))
-#print(csv_transformation(r"C:\Users\User\Documents\Repositories\URFT\test_files\test_llh_ddm.csv", csv_llh_ddm, params_llh))
-#print(csv_transformation(r"C:\Users\User\Documents\Repositories\URFT\test_files\test_llh_dms.csv", csv_llh_dms, params_llh))
-#print(csv_transformation(r"C:\Users\User\Documents\Repositories\URFT\test_files\test_enu.csv", csv_enu, params_enu))
-print(shp_transformation(r"C:\Users\User\Documents\Repositories\URFT\test_files\corner.shp", params_shp))
+#print(csv_transformation("/home/ubuntu/URFT/test_files/test_xyz.csv", csv_xyz, params_xyz))
+#print(csv_transformation("/home/ubuntu/URFT/test_files/test_llh_dd.csv", csv_llh_dd, params_llh))
+#print(csv_transformation("/home/ubuntu/URFT/test_files/test_llh_ddm.csv", csv_llh_ddm, params_llh))
+#print(csv_transformation("/home/ubuntu/URFT/test_files/test_llh_dms.csv", csv_llh_dms, params_llh))
+#print(csv_transformation("/home/ubuntu/URFT/test_files/test_enu.csv", csv_enu, params_enu))
+#print(transform_vector_file("./test_files/test_point_xyz.shp", params_shp, coord_type="llh", out_crs="EPSG:4283"))

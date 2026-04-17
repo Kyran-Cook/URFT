@@ -1,1 +1,2 @@
-Point A,-34,44,48.0353,150,12,11.9846,100.0927
+,lat_deg,lat_min,lat_sec,lon_deg,lon_min,lon_sec,el_height,x_transformed,y_transformed,z_transformed
+Point A,-35,15,12,150,12,12,100.0,-4552950.2068,2607147.8734,-3614867.5461

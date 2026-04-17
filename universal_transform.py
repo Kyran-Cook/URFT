@@ -527,6 +527,9 @@ def universal_transform(x, y, z, from_ref, to_ref, from_epoch=None, to_epoch=Non
         to_epoch = date(to_epoch.year, 6, 30)
 
     # Check return_type is an option and correct for to_ref
+    if return_type is None:
+        return_type = "xyz"
+
     if return_type.lower() not in ("xyz", "llh", "enu"):
         raise ValueError("return_type must be either \"xyz\", \"llh\", \"enu\"")
     
@@ -584,7 +587,7 @@ def universal_transform(x, y, z, from_ref, to_ref, from_epoch=None, to_epoch=Non
         output["coords"] = {
             "east": round(east,4),
             "north": round(north,4),
-            "height": round(el_height,4),
+            "el_height": round(el_height,4),
             "zone": zone
         }
     
@@ -630,6 +633,9 @@ def universal_transform_llh(lat, lon, el_height, from_ref, to_ref, from_epoch=No
         raise TypeError("lon value not float")
     if type(el_height) != float:
         raise TypeError("el_height value not float") 
+
+    if return_type is None:
+        return_type = "llh"
 
     # Check return_type is an option and correct for to_ref
     if return_type.lower() not in ("xyz", "llh", "enu"):
@@ -682,13 +688,13 @@ def universal_transform_llh(lat, lon, el_height, from_ref, to_ref, from_epoch=No
         output["coords"] = {
             "east": round(east,4),
             "north": round(north,4),
-            "height": round(el_height,4),
+            "el_height": round(el_height,4),
             "zone": zone
         }
     
     return output
     
-def universal_transform_enu(east, north, height, zone, from_ref, to_ref, from_epoch=None, to_epoch=None, plate_motion="auto", vcv=None, return_type="enu", ignore_errors=False):
+def universal_transform_enu(east, north, el_height, zone, from_ref, to_ref, from_epoch=None, to_epoch=None, plate_motion="auto", vcv=None, return_type="enu", ignore_errors=False):
     """
     Completes a transformation from any reference frame to any other
 
@@ -696,8 +702,8 @@ def universal_transform_enu(east, north, height, zone, from_ref, to_ref, from_ep
     :type east: float
     :param north: Northing (m)
     :type north: float
-    :param height: Ellipsoidal height (m)
-    :type height: float
+    :param el_height: Ellipsoidal height (m)
+    :type el_height: float
     :param zone: UTM zone
     :type zone: int
     :param from_ref: Source reference frame
@@ -728,10 +734,13 @@ def universal_transform_enu(east, north, height, zone, from_ref, to_ref, from_ep
         raise TypeError("east value not float")
     if type(north) != float:
         raise TypeError("north value not float")
-    if type(height) != float:
-        raise TypeError("height value not float") 
+    if type(el_height) != float:
+        raise TypeError("el_height value not float") 
     if type(zone) != int:
         raise TypeError("zone value not int")
+
+    if return_type is None:
+        return_type = "enu"
 
     # Check return_type is an option and correct for to_ref
     if return_type.lower() not in ("xyz", "llh", "enu"):
@@ -747,7 +756,7 @@ def universal_transform_enu(east, north, height, zone, from_ref, to_ref, from_ep
 
     # Convert to enu to xyz and run xyz function
     lat, lon, psf, converge = con.grid2geo(zone, east, north)
-    x, y, z = con.llh2xyz(lat, lon, height)
+    x, y, z = con.llh2xyz(lat, lon, el_height)
 
     # Change from_ref and to_ref to GDA equivalent if needed
     to_ref = mga_parse(to_ref)
@@ -786,7 +795,7 @@ def universal_transform_enu(east, north, height, zone, from_ref, to_ref, from_ep
         output["coords"] = {
             "east": round(east,4),
             "north": round(north,4),
-            "height": round(el_height,4),
+            "el_height": round(el_height,4),
             "zone": zone
         }
     
