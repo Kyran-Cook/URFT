@@ -405,11 +405,11 @@ def point_page():
                 with redirect_stdout(buf), redirect_stderr(buf):
                     try:
                         if input_type == "XYZ":
-                            result = ut.universal_transform(xyz["x"], xyz["y"], xyz["z"], from_frame, to_frame, coord_epoch, target_epoch, "aus", None, output_type)
+                            result = ut.universal_transform(xyz["x"], xyz["y"], xyz["z"], from_frame, to_frame, coord_epoch, target_epoch, "aus", None, output_type, verbose=True)
                         elif input_type == "LLH":
-                            result = ut.universal_transform_llh(llh["lat"], llh["lon"], llh["h"], from_frame, to_frame, coord_epoch, target_epoch, "aus", None, output_type)
+                            result = ut.universal_transform_llh(llh["lat"], llh["lon"], llh["h"], from_frame, to_frame, coord_epoch, target_epoch, "aus", None, output_type, verbose=True)
                         elif input_type == "ENU":
-                            result = ut.universal_transform_enu(enu["e"], enu["n"], enu["u"], enu["zone"], from_frame, to_frame, coord_epoch, target_epoch, "aus", None, output_type)
+                            result = ut.universal_transform_enu(enu["e"], enu["n"], enu["u"], enu["zone"], from_frame, to_frame, coord_epoch, target_epoch, "aus", None, output_type, verbose=True)
                     except Exception as e:
                         st.error(f"Error during transformation: {e}")
                         result = None

@@ -1,33 +1,15 @@
 from __future__ import annotations
 
 import universal_transform
-import csv
 
-from dataclasses import dataclass, field
-from typing import Literal, Optional, Union
+from dataclasses import dataclass
+from typing import Optional, Union
 import datetime as dt
 
 import numpy as np
-
 import pandas as pd
-import os
 import numpy as np
 from pathlib import Path
-
-from shapely.geometry import (
-    Point, LineString, Polygon,
-    MultiPoint, MultiLineString, MultiPolygon,
-    GeometryCollection
-)
-from shapely.geometry.base import BaseGeometry
-import geopandas as gpd
-
-from pathlib import Path
-from typing import Optional, Literal, Iterable, Union, List
-
-import geopandas as gpd
-import fiona
-from shapely.ops import transform as shapely_transform
 
 # This file will transform different file types between referene frames.
 # The supprted files types are as follows:
@@ -58,8 +40,10 @@ class TransformParams:
     vcv: Optional[np.ndarray] = None
 
     return_type: str = None         # "xyz" | "llh" | "enu"
-    ignore_errors: bool = False
     angle_return_type: Optional[str] = None  # "dd" | "ddm" | "dms" (LLH output only)
+
+    ignore_errors: bool = False
+    verbose: bool = False
 
     # -------------------
     # Validation
@@ -90,6 +74,7 @@ class TransformParams:
             vcv=self.vcv,
             return_type=self.return_type,
             ignore_errors=self.ignore_errors,
+            verbose=self.verbose
         )
 
 
@@ -589,7 +574,6 @@ def csv_transformation(file_path, csv_params, transform_params):
     Returns the output file path.
     """
     
-    #print(f"Transforming CSV file at {file_path} with params: {transform_params}")
     # Here you would read the CSV, apply transformations, and write the output
     csv_params.validate()
     transform_params.validate_basic()
@@ -618,268 +602,6 @@ def csv_transformation(file_path, csv_params, transform_params):
     print(f"Transformed {len(df)} rows to: {output_path}")
     return str(output_path)
 
-
-
-# ---------------------------
-# Helpers
-# ---------------------------
-
-def _is_geographic_crs(gdf: gpd.GeoDataFrame) -> bool:
-    """True if CRS exists and is geographic (lat/lon)."""
-    if gdf.crs is None:
-        return False
-    try:
-        return bool(getattr(gdf.crs, "is_geographic", False))
-    except Exception:
-        return False
-
-
-def _list_layers(path: Union[str, Path]) -> List[str]:
-    """List layers for multi-layer datasets (e.g., GeoPackage)."""
-    try:
-        return list(fiona.listlayers(str(path)))
-    except Exception:
-        return []
-
-
-def _infer_mga_zone_from_epsg(epsg: Optional[int]) -> Optional[int]:
-    """
-    Best-effort inference for MGA zone from common EPSG patterns.
-
-    Examples:
-      - GDA94 / MGA zone 56  -> EPSG:28356 -> zone = 56
-      - GDA2020 / MGA zone 56 -> EPSG:7856 -> zone = 56
-
-    Returns None if it can't infer.
-    """
-    if epsg is None:
-        return None
-
-    # GDA94 MGA zones: EPSG 28300 + zone (e.g., 28356 => 56)
-    if 28300 <= epsg <= 28399:
-        zone = epsg - 28300
-        if 1 <= zone <= 60:
-            return zone
-
-    # GDA2020 MGA zones: commonly EPSG 7800 + zone (e.g., 7856 => 56)
-    if 7800 <= epsg <= 7899:
-        zone = epsg - 7800
-        if 1 <= zone <= 60:
-            return zone
-
-    return None
-
-
-# ---------------------------
-# Transform one GeoDataFrame
-# ---------------------------
-
-def transform_geodataframe(
-    gdf: gpd.GeoDataFrame,
-    transform_params: "TransformParams",
-    *,
-    coord_type: Literal["auto", "llh", "enu", "xyz"] = "auto",
-    height_default: float = 0.0,
-    zone: Optional[int] = None,
-    zone_from_crs: bool = True,
-    out_crs: Optional[str] = None,
-    default_if_unknown: Literal["llh", "enu"] = "enu",
-) -> gpd.GeoDataFrame:
-    """
-    Transform geometries in a GeoDataFrame using your Geodepy-based functions.
-
-    coord_type:
-      - "auto": geographic CRS -> llh, projected CRS -> enu, CRS missing -> default_if_unknown
-      - "llh" : interpret x=lon, y=lat (degrees)
-      - "enu" : interpret x=east, y=north (requires MGA zone)
-      - "xyz" : interpret x,y,z as geocentric XYZ (rare for GIS data)
-
-    out_crs:
-      Sets CRS metadata after transformation (does NOT reproject using pyproj).
-      Use this if you are doing a datum/ref-frame change and want to update the tag.
-    """
-    transform_params.validate_basic()
-    kwargs = transform_params.to_kwargs()
-    print(kwargs)
-
-    gdf_out = gdf.copy()
-    print(gdf_out)
-
-    # Decide coordinate interpretation
-    ct = coord_type.lower()
-    if ct == "auto":
-        if _is_geographic_crs(gdf_out):
-            ct = "llh"
-        elif gdf_out.crs is None:
-            ct = default_if_unknown
-        else:
-            ct = "enu"
-
-    # Determine MGA zone if ENU
-    used_zone = zone
-    if ct == "enu" and used_zone is None and zone_from_crs and gdf_out.crs is not None:
-        try:
-            epsg = gdf_out.crs.to_epsg()
-        except Exception:
-            epsg = None
-        used_zone = _infer_mga_zone_from_epsg(epsg)
-
-    if ct == "enu" and used_zone is None:
-        raise ValueError(
-            "ENU transformation requires an MGA zone. Provide zone=..., "
-            "or ensure CRS EPSG allows inference (e.g., EPSG:28356 / EPSG:7856)."
-        )
-
-    # Coordinate function for shapely.ops.transform
-    #
-    # Shapely/GIS coordinate order is (x, y) = (lon/east, lat/north)
-    # Your universal_transform_llh expects (lat, lon, h) -> so we swap x/y on input/output.
-    def _coord_func(x, y, z=None):
-        has_z = z is not None
-        h = float(z) if has_z else float(height_default)
-        x = float(x)
-        y = float(y)
-
-        if ct == "llh":
-            print(x, y)
-            res = universal_transform.universal_transform_llh(float(y), float(x), h, **kwargs)
-            print(res)
-            lon2 = res["coords"]["lon"]
-            lat2 = res["coords"]["lat"]
-            h2   = res["coords"]["el_height"]
-            return (lon2, lat2, h2) if has_z else (lon2, lat2)
-
-        if ct == "enu":
-            res = universal_transform.universal_transform_enu(float(x), float(y), h, int(used_zone), **kwargs)
-            e2 = res["coords"]["east"]
-            n2 = res["coords"]["north"]
-            h2 = res["coords"]["height"]
-            return (e2, n2, h2) if has_z else (e2, n2)
-
-        if ct == "xyz":
-            # xyz needs 3D; if missing Z, use height_default as best-effort Z
-            if z is None:
-                z = float(height_default)
-                has_z = True
-            res = universal_transform.universal_transform(float(x), float(y), float(z), **kwargs)
-            x2 = res["coords"]["x"]
-            y2 = res["coords"]["y"]
-            z2 = res["coords"]["z"]
-            return (x2, y2, z2) if has_z else (x2, y2)
-
-        raise ValueError("coord_type must be 'auto', 'llh', 'enu', or 'xyz'")
-
-    def _transform_geom(geom):
-        if geom is None or geom.is_empty:
-            return geom
-        return shapely_transform(_coord_func, geom)
-
-    gdf_out["geometry"] = gdf_out["geometry"].apply(_transform_geom)
-
-    # Update CRS metadata if requested (no reprojection performed)
-    if out_crs is not None:
-        gdf_out = gdf_out.set_crs(out_crs, allow_override=True)
-
-    return gdf_out
-
-
-# ---------------------------
-# Read/Write vector files
-# ---------------------------
-
-LayerSpec = Union[Literal["auto", "all"], str, Iterable[str], None]
-
-def transform_vector_file(
-    file_path: str,
-    transform_params: "TransformParams",
-    *,
-    coord_type: Literal["auto", "llh", "enu", "xyz"] = "auto",
-    height_default: float = 0.0,
-    zone: Optional[int] = None,
-    zone_from_crs: bool = True,
-    out_crs: Optional[str] = None,
-    layers: LayerSpec = "auto",
-    default_if_unknown: Literal["llh", "enu"] = "enu",
-) -> str:
-    """
-    Transform SHP, GeoJSON, or GeoPackage.
-
-    - SHP/GeoJSON: typically single-layer (layers ignored)
-    - GPKG: can have multiple layers:
-        layers="auto" -> all layers if multiple exist, else the default layer
-        layers="all"  -> all layers
-        layers="roads" or ["roads","parcels"] -> specific layer(s)
-
-    Writes output alongside input with suffix "_transformed".
-    Returns output path.
-    """
-    in_path = Path(file_path)
-    if not in_path.exists():
-        raise FileNotFoundError(file_path)
-
-    ext = in_path.suffix.lower()
-    supported = {".shp", ".geojson", ".json", ".gpkg"}
-    if ext not in supported:
-        raise ValueError(f"Unsupported file type '{ext}'. Supported: {sorted(supported)}")
-
-    out_path = in_path.with_name(in_path.stem + "_transformed" + in_path.suffix)
-
-    # --- SHP / GeoJSON (single layer) ---
-    if ext in {".shp", ".geojson", ".json"}:
-        gdf = gpd.read_file(in_path)
-        gdf_t = transform_geodataframe(
-            gdf,
-            transform_params,
-            coord_type=coord_type,
-            height_default=height_default,
-            zone=zone,
-            zone_from_crs=zone_from_crs,
-            out_crs=out_crs,
-            default_if_unknown=default_if_unknown,
-        )
-        gdf_t.to_file(out_path)  # driver inferred from extension
-        return str(out_path)
-
-    # --- GPKG (potentially multi-layer) ---
-    available_layers = _list_layers(in_path)
-
-    # Choose which layers to process
-    if layers in (None, "auto"):
-        layer_list = available_layers if len(available_layers) > 0 else [None]
-    elif layers == "all":
-        layer_list = available_layers if len(available_layers) > 0 else [None]
-    elif isinstance(layers, str):
-        layer_list = [layers]
-    else:
-        layer_list = list(layers)
-
-    # If output exists, remove it so we can write layers cleanly
-    if out_path.exists():
-        out_path.unlink()
-
-    for i, lyr in enumerate(layer_list):
-        gdf = gpd.read_file(in_path, layer=lyr) if isinstance(lyr, str) else gpd.read_file(in_path)
-        gdf_t = transform_geodataframe(
-            gdf,
-            transform_params,
-            coord_type=coord_type,
-            height_default=height_default,
-            zone=zone,
-            zone_from_crs=zone_from_crs,
-            out_crs=out_crs,
-            default_if_unknown=default_if_unknown,
-        )
-
-        layer_name = lyr if isinstance(lyr, str) else "layer"
-        mode = "w" if i == 0 else "a"
-
-        # GeoPandas supports mode for GPKG in modern stacks.
-        # If your stack errors on mode, we can adjust (tell me your geopandas version).
-        gdf_t.to_file(out_path, layer=layer_name, driver="GPKG", mode=mode)
-
-    return str(out_path)
-
-
 params_xyz = TransformParams("ITRF2014", "MGA94", dt.date(2014,1,1), plate_motion="aus", return_type="enu")
 params_llh = TransformParams("ITRF2014", "GDA94", dt.date(2014,1,1), plate_motion="aus", return_type="xyz")
 params_enu = TransformParams("MGA94", "MGA2020", dt.date(2014,1,1), plate_motion="aus", return_type="enu")
@@ -891,14 +613,8 @@ csv_llh_ddm = CSVCoordinateMapping("llh", "ddm", lat_deg=1,lat_min=2, lon_deg=3,
 csv_llh_dms = CSVCoordinateMapping("llh", "dms", lat_deg=1,lat_min=2,lat_sec=3, lon_deg=4, lon_min=5,lon_sec=6, el_height=7)
 csv_enu = CSVCoordinateMapping("enu", None, zone=4, east=1, north=2, el_height=3)
 
-#params.validate_basic()
-
-#out = universal_transform.universal_transform(-4130636.759, 2894953.142, -3890530.249, **params_xyz.to_kwargs())
-#print(out)
-
 print(csv_transformation("/home/ubuntu/tests/Points_260412_1000pts.csv", csv_enu, params_enu))
 #print(csv_transformation("/home/ubuntu/URFT/test_files/test_llh_dd.csv", csv_llh_dd, params_llh))
 #print(csv_transformation("/home/ubuntu/URFT/test_files/test_llh_ddm.csv", csv_llh_ddm, params_llh))
 #print(csv_transformation("/home/ubuntu/URFT/test_files/test_llh_dms.csv", csv_llh_dms, params_llh))
 #print(csv_transformation("/home/ubuntu/URFT/test_files/test_enu.csv", csv_enu, params_enu))
-#print(transform_vector_file("./test_files/test_point_xyz.shp", params_shp, coord_type="llh", out_crs="EPSG:4283"))

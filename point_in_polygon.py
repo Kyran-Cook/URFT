@@ -461,7 +461,7 @@ def universal_plate_motion_transformation(x ,y, z,
                                           from_epoch, to_epoch, vcv=None,
                                           plate_file = "other_files/MORVEL56_plates.dig", 
                                           poles_file = "other_files/NNR-MORVEL56_poles.txt", 
-                                          ref_epoch = date(2020, 1, 1)):
+                                          ref_epoch = date(2020, 1, 1), verbose=False):
     """
     Given ECEF XYZ coordinates, find the plate, find the plate motion and transform point.
 
@@ -483,6 +483,8 @@ def universal_plate_motion_transformation(x ,y, z,
     :type poles_file: str
     :param ref_epoch: Reference epoch of transformation
     :type ref_epoch: datetime.date
+    :param verbose: If True, will print additional information during transformation
+    :type verbose: bool
     :return: Transformed XYZ and VCV
     :rtype: tuple (xtrans, ytrans, ztrans, vcv)
     """
@@ -495,12 +497,13 @@ def universal_plate_motion_transformation(x ,y, z,
     if not plate_id:
         raise ValueError("No plate found for given coordinates")
     
-    print(f"Plate motion on {plate_id} plate")
+    vprint = print if verbose else lambda *a, **k: None
+    vprint(f"Plate motion on {plate_id} plate")
 
     # Create GeodePy Transformation object for plate
     transformation = plate_transformation(plate_id, poles_file, ref_epoch=ref_epoch)
 
     # Complete transformation between given dates
-    xtrans, ytrans, ztrans, vcv = transform.plate_motion_transformation(x, y, z, from_epoch, to_epoch, transformation, vcv)
+    xtrans, ytrans, ztrans, vcv = transform.plate_motion_transformation(x, y, z, from_epoch, to_epoch, transformation, vcv, verbose)
 
     return xtrans, ytrans, ztrans, vcv

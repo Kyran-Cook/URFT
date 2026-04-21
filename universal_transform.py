@@ -152,7 +152,7 @@ def transformation_type(path):
 
     return f"{start_type}_to_{end_type}"
 
-def static_to_static_trans(x, y, z, path, vcv):
+def static_to_static_trans(x, y, z, path, vcv, verbose=False):
     """
     Completes static to static transformation
 
@@ -166,10 +166,14 @@ def static_to_static_trans(x, y, z, path, vcv):
     :type path: list of str
     :param vcv: Optional 3*3 numpy array in Cartesian units to propagate tf uncertainty
     :type vcv: numpy.ndarray
+    :param verbose: If True, will print additional information during transformation
+    :type verbose: bool
     :return: Cartesian X, Y, Z co-ordinates and vcv matrix transformed
     :rtype: tuple
     """
-    
+    # Set up for verbose output
+    vprint = print if verbose else lambda *a, **k: None
+
     i = 1
 
     # Completes each step of transformation path
@@ -180,7 +184,7 @@ def static_to_static_trans(x, y, z, path, vcv):
         
         # Find name of correct transformation
         transform = f"{from_frame}_to_{to_frame}"
-        #print(transform)
+        vprint(transform)
 
         # Get transformation from geodepy.constants
         trans = getattr(gc, transform)
@@ -191,11 +195,11 @@ def static_to_static_trans(x, y, z, path, vcv):
         i+=1
 
 
-    #print("")
-    #print("Completed Transformation")
+    vprint("")
+    vprint("Completed Transformation")
     return round(x,4), round(y, 4), round(z, 4), vcv
 
-def static_to_dynamic_trans(x, y, z, to_epoch, path, vcv):
+def static_to_dynamic_trans(x, y, z, to_epoch, path, vcv, verbose=False):
     """
     Completes static to dynamic transformation
 
@@ -211,9 +215,14 @@ def static_to_dynamic_trans(x, y, z, to_epoch, path, vcv):
     :type path: list of str
     :param vcv: Optional 3*3 numpy array in Cartesian units to propagate tf uncertainty
     :type vcv: numpy.ndarray
+    :param verbose: If True, will print additional information during transformation
+    :type verbose: bool
     :return: Cartesian X, Y, Z co-ordinates and vcv matrix transformed
     :rtype: tuple
     """
+
+    # Set up for verbose output
+    vprint = print if verbose else lambda *a, **k: None
 
     i = 1
 
@@ -225,7 +234,7 @@ def static_to_dynamic_trans(x, y, z, to_epoch, path, vcv):
 
         # Find name of correct transformation
         transform = f"{from_frame}_to_{to_frame}"
-        #print(transform)
+        vprint(transform)
 
         # Get transformation from geodepy.constants
         trans = getattr(gc, transform)
@@ -241,11 +250,11 @@ def static_to_dynamic_trans(x, y, z, to_epoch, path, vcv):
         i+=1
 
 
-    #print("")
-    #print("Completed Transformation")
+    vprint("")
+    vprint("Completed Transformation")
     return round(x,4), round(y, 4), round(z, 4), vcv
 
-def dynamic_to_static_trans(x, y, z, from_epoch, path, vcv):
+def dynamic_to_static_trans(x, y, z, from_epoch, path, vcv, verbose=False):
     """
     Completes dynamic to static transformation
 
@@ -261,9 +270,14 @@ def dynamic_to_static_trans(x, y, z, from_epoch, path, vcv):
     :type path: list of str
     :param vcv: Optional 3*3 numpy array in Cartesian units to propagate tf uncertainty
     :type vcv: numpy.ndarray
+    :param verbose: If True, will print additional information during transformation
+    :type verbose: bool
     :return: Cartesian X, Y, Z co-ordinates and vcv matrix transformed
     :rtype: tuple
     """
+
+    # Set up for verbose output
+    vprint = print if verbose else lambda *a, **k: None
 
     i = 1
 
@@ -275,7 +289,7 @@ def dynamic_to_static_trans(x, y, z, from_epoch, path, vcv):
 
         # Find name of correct transformation
         transform = f"{from_frame}_to_{to_frame}"
-        #print(transform)
+        vprint(transform)
 
         # Get transformation from geodepy.constants
         trans = getattr(gc, transform)
@@ -291,11 +305,11 @@ def dynamic_to_static_trans(x, y, z, from_epoch, path, vcv):
         i+=1
 
 
-    #print("")
-    #print("Completed Transformation")
+    vprint("")
+    vprint("Completed Transformation")
     return round(x,4), round(y, 4), round(z, 4), vcv
 
-def dynamic_to_dynamic_trans(x, y, z, from_ref, to_ref, from_epoch, to_epoch, plate_motion, vcv):
+def dynamic_to_dynamic_trans(x, y, z, from_ref, to_ref, from_epoch, to_epoch, plate_motion, vcv, verbose=False):
     """
     Completes dynamic to dynamic transformation
 
@@ -317,9 +331,14 @@ def dynamic_to_dynamic_trans(x, y, z, from_ref, to_ref, from_epoch, to_epoch, pl
     :type plate_motion: str
     :param vcv: Optional 3*3 numpy array in Cartesian units to propagate tf uncertainty
     :type vcv: numpy.ndarray
+    :param verbose: If True, will print additional information during transformation
+    :type verbose: bool
     :return: Cartesian X, Y, Z co-ordinates and vcv matrix transformed
     :rtype: tuple
     """
+
+    # Set up for verbose output
+    vprint = print if verbose else lambda *a, **k: None
 
     # If from and to epoch are the same then direct transformation without plate motion 
     # can be completed
@@ -336,7 +355,7 @@ def dynamic_to_dynamic_trans(x, y, z, from_ref, to_ref, from_epoch, to_epoch, pl
 
             # Find name of correct transformation
             transform = f"{from_frame}_to_{to_frame}"
-            #print(transform)
+            vprint(transform)
 
             # Get transformation from geodepy.constants
             trans = getattr(gc, transform)
@@ -352,8 +371,8 @@ def dynamic_to_dynamic_trans(x, y, z, from_ref, to_ref, from_epoch, to_epoch, pl
             i+=1
 
 
-        #print("")
-        #print("Completed Transformation")
+        vprint("")
+        vprint("Completed Transformation")
         return round(x,4), round(y, 4), round(z, 4), vcv
 
     # Otherwise if epochs are not the same and plate motion is required
@@ -389,10 +408,10 @@ def dynamic_to_dynamic_trans(x, y, z, from_ref, to_ref, from_epoch, to_epoch, pl
 
     # Decide which plate motion to use
     if plate_motion == "auto":
-        x, y, z, vcv = pp.universal_plate_motion_transformation(x, y, z, from_epoch, to_epoch, vcv)
+        x, y, z, vcv = pp.universal_plate_motion_transformation(x, y, z, from_epoch, to_epoch, vcv, verbose)
 
     elif plate_motion == "aus":
-        x, y, z, vcv = tr.plate_motion_transformation(x, y, z, from_epoch, to_epoch, gc.itrf2014_to_gda2020, vcv)
+        x, y, z, vcv = tr.plate_motion_transformation(x, y, z, from_epoch, to_epoch, gc.itrf2014_to_gda2020, vcv, verbose)
 
     else:
         raise ValueError("plate_motion must be either auto or aus")
@@ -409,7 +428,7 @@ def dynamic_to_dynamic_trans(x, y, z, from_ref, to_ref, from_epoch, to_epoch, pl
 
         # Find name of correct transformation
         transform = f"{from_frame}_to_{to_frame}"
-        #print(transform)
+        vprint(transform)
 
         # Get transformation from geodepy.constants
         trans = getattr(gc, transform)
@@ -424,11 +443,11 @@ def dynamic_to_dynamic_trans(x, y, z, from_ref, to_ref, from_epoch, to_epoch, pl
 
         i+=1
 
-    #print("")
-    #print("Completed Transformation")
+    vprint("")
+    vprint("Completed Transformation")
     return round(x,4), round(y, 4), round(z, 4), vcv
 
-def universal_transform(x, y, z, from_ref, to_ref, from_epoch=None, to_epoch=None, plate_motion="auto", vcv=None, return_type="xyz", ignore_errors=False):
+def universal_transform(x, y, z, from_ref, to_ref, from_epoch=None, to_epoch=None, plate_motion="auto", vcv=None, return_type="xyz", ignore_errors=False, verbose=False):
     """
     Completes a transformation from any reference frame to any other
 
@@ -454,6 +473,8 @@ def universal_transform(x, y, z, from_ref, to_ref, from_epoch=None, to_epoch=Non
     :type return_type: str
     :param ignore_errors: If True, will not raise errors about point not being on Australia's plate
     :type ignore_errors: bool
+    :param verbose: If True, will print additional information during transformation
+    :type verbose: bool
     :return: Coordinates and vcv matrix transformed and in the return type given
     :rtype: dict
     """
@@ -541,25 +562,29 @@ def universal_transform(x, y, z, from_ref, to_ref, from_epoch=None, to_epoch=Non
         raise ValueError("Can only return mga coordinates in enu. return_type must be \"enu\"")
 
     #Finished input validation
-    '''
-    print()
-    print(f"Completing a {trans_type} transformation")
-    print("")
-    print("Steps: ")
-    '''
+
+    # Setup for verbose output
+    vprint = print if verbose else lambda *a, **k: None
+
+    
+    vprint()
+    vprint(f"Completing a {trans_type} transformation")
+    vprint("")
+    vprint("Steps: ")
+    
 
     # Choose the correct function for the transformation type
     if trans_type == "static_to_static":
-        x, y, z, vcv = static_to_static_trans(x, y, z, path, vcv)
+        x, y, z, vcv = static_to_static_trans(x, y, z, path, vcv, verbose)
 
     elif trans_type == "static_to_dynamic":
-        x, y, z, vcv = static_to_dynamic_trans(x, y, z, to_epoch, path, vcv)
+        x, y, z, vcv = static_to_dynamic_trans(x, y, z, to_epoch, path, vcv, verbose)
 
     elif trans_type == "dynamic_to_static":
-        x, y, z, vcv = dynamic_to_static_trans(x, y, z, from_epoch, path, vcv)
+        x, y, z, vcv = dynamic_to_static_trans(x, y, z, from_epoch, path, vcv, verbose)
 
     elif trans_type == "dynamic_to_dynamic":
-        x, y, z, vcv = dynamic_to_dynamic_trans(x, y, z, from_ref, to_ref, from_epoch, to_epoch, plate_motion, vcv)
+        x, y, z, vcv = dynamic_to_dynamic_trans(x, y, z, from_ref, to_ref, from_epoch, to_epoch, plate_motion, vcv, verbose)
 
     else:
         raise(ValueError("Transformation type not valid"))
@@ -596,7 +621,7 @@ def universal_transform(x, y, z, from_ref, to_ref, from_epoch=None, to_epoch=Non
     
     return output
 
-def universal_transform_llh(lat, lon, el_height, from_ref, to_ref, from_epoch=None, to_epoch=None, plate_motion="auto", vcv=None, return_type="llh", ignore_errors=False):
+def universal_transform_llh(lat, lon, el_height, from_ref, to_ref, from_epoch=None, to_epoch=None, plate_motion="auto", vcv=None, return_type="llh", ignore_errors=False, verbose=False):
     """
     Completes a transformation from any reference frame to any other
 
@@ -622,6 +647,8 @@ def universal_transform_llh(lat, lon, el_height, from_ref, to_ref, from_epoch=No
     :type return_type: str
     :param ignore_errors: If True, will not raise errors about point not being on Australia's plate
     :type ignore_errors: bool
+    :param verbose: If True, will print additional information during transformation
+    :type verbose: bool
     :return: Co-ordinates and vcv matrix transformed and in the return type given
     :rtype: dict
     """
@@ -658,7 +685,7 @@ def universal_transform_llh(lat, lon, el_height, from_ref, to_ref, from_epoch=No
     # Change to_ref to GDA equivalent
     to_ref = mga_parse(to_ref)
 
-    result = universal_transform(x, y, z, from_ref, to_ref, from_epoch, to_epoch, plate_motion, vcv, ignore_errors=ignore_errors)
+    result = universal_transform(x, y, z, from_ref, to_ref, from_epoch, to_epoch, plate_motion, vcv, ignore_errors=ignore_errors, verbose=verbose)
 
     x = result["coords"]["x"]
     y = result["coords"]["y"]
@@ -697,7 +724,7 @@ def universal_transform_llh(lat, lon, el_height, from_ref, to_ref, from_epoch=No
     
     return output
     
-def universal_transform_enu(east, north, el_height, zone, from_ref, to_ref, from_epoch=None, to_epoch=None, plate_motion="auto", vcv=None, return_type="enu", ignore_errors=False):
+def universal_transform_enu(east, north, el_height, zone, from_ref, to_ref, from_epoch=None, to_epoch=None, plate_motion="auto", vcv=None, return_type="enu", ignore_errors=False, verbose=False):
     """
     Completes a transformation from any reference frame to any other
 
@@ -725,6 +752,8 @@ def universal_transform_enu(east, north, el_height, zone, from_ref, to_ref, from
     :type return_type: str
     :param ignore_errors: If True, will not raise errors about point not being on Australia's plate
     :type ignore_errors: bool
+    :param verbose: If True, will print additional information during transformation
+    :type verbose: bool
     :return: Co-ordinates and vcv matrix transformed and in the return type given
     :rtype: dict
     """
@@ -765,7 +794,7 @@ def universal_transform_enu(east, north, el_height, zone, from_ref, to_ref, from
     to_ref = mga_parse(to_ref)
     from_ref = mga_parse(from_ref)
 
-    result = universal_transform(x, y, z, from_ref, to_ref, from_epoch, to_epoch, plate_motion, vcv, ignore_errors=ignore_errors)
+    result = universal_transform(x, y, z, from_ref, to_ref, from_epoch, to_epoch, plate_motion, vcv, ignore_errors=ignore_errors, verbose=verbose)
 
     x = result["coords"]["x"]
     y = result["coords"]["y"]
