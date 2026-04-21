@@ -22,6 +22,9 @@ with open("other_files/transformation_routes_v3.json", "r", encoding="utf-8") as
 ROUTES = ROUTING["routes"]
 DIRECT = ROUTING["direct_pairs"]
 
+PLATES = pp.build_plate_index("other_files/MORVEL56_plates.dig")
+EEZ_PLATE = pp.build_plate_index("other_files/EEZ_australia_approx.dig")
+
 def mga_parse(ref):
     """
     If referenc frame is MGA, change to equivalent GDA.
@@ -177,7 +180,7 @@ def static_to_static_trans(x, y, z, path, vcv):
         
         # Find name of correct transformation
         transform = f"{from_frame}_to_{to_frame}"
-        print(transform)
+        #print(transform)
 
         # Get transformation from geodepy.constants
         trans = getattr(gc, transform)
@@ -188,8 +191,8 @@ def static_to_static_trans(x, y, z, path, vcv):
         i+=1
 
 
-    print("")
-    print("Completed Transformation")
+    #print("")
+    #print("Completed Transformation")
     return round(x,4), round(y, 4), round(z, 4), vcv
 
 def static_to_dynamic_trans(x, y, z, to_epoch, path, vcv):
@@ -222,7 +225,7 @@ def static_to_dynamic_trans(x, y, z, to_epoch, path, vcv):
 
         # Find name of correct transformation
         transform = f"{from_frame}_to_{to_frame}"
-        print(transform)
+        #print(transform)
 
         # Get transformation from geodepy.constants
         trans = getattr(gc, transform)
@@ -238,8 +241,8 @@ def static_to_dynamic_trans(x, y, z, to_epoch, path, vcv):
         i+=1
 
 
-    print("")
-    print("Completed Transformation")
+    #print("")
+    #print("Completed Transformation")
     return round(x,4), round(y, 4), round(z, 4), vcv
 
 def dynamic_to_static_trans(x, y, z, from_epoch, path, vcv):
@@ -272,7 +275,7 @@ def dynamic_to_static_trans(x, y, z, from_epoch, path, vcv):
 
         # Find name of correct transformation
         transform = f"{from_frame}_to_{to_frame}"
-        print(transform)
+        #print(transform)
 
         # Get transformation from geodepy.constants
         trans = getattr(gc, transform)
@@ -288,8 +291,8 @@ def dynamic_to_static_trans(x, y, z, from_epoch, path, vcv):
         i+=1
 
 
-    print("")
-    print("Completed Transformation")
+    #print("")
+    #print("Completed Transformation")
     return round(x,4), round(y, 4), round(z, 4), vcv
 
 def dynamic_to_dynamic_trans(x, y, z, from_ref, to_ref, from_epoch, to_epoch, plate_motion, vcv):
@@ -333,7 +336,7 @@ def dynamic_to_dynamic_trans(x, y, z, from_ref, to_ref, from_epoch, to_epoch, pl
 
             # Find name of correct transformation
             transform = f"{from_frame}_to_{to_frame}"
-            print(transform)
+            #print(transform)
 
             # Get transformation from geodepy.constants
             trans = getattr(gc, transform)
@@ -349,8 +352,8 @@ def dynamic_to_dynamic_trans(x, y, z, from_ref, to_ref, from_epoch, to_epoch, pl
             i+=1
 
 
-        print("")
-        print("Completed Transformation")
+        #print("")
+        #print("Completed Transformation")
         return round(x,4), round(y, 4), round(z, 4), vcv
 
     # Otherwise if epochs are not the same and plate motion is required
@@ -369,7 +372,7 @@ def dynamic_to_dynamic_trans(x, y, z, from_ref, to_ref, from_epoch, to_epoch, pl
 
         # Find name of correct transformation
         transform = f"{from_frame}_to_{to_frame}"
-        print(transform)
+        #print(transform)
 
         # Get transformation from geodepy.constants
         trans = getattr(gc, transform)
@@ -406,7 +409,7 @@ def dynamic_to_dynamic_trans(x, y, z, from_ref, to_ref, from_epoch, to_epoch, pl
 
         # Find name of correct transformation
         transform = f"{from_frame}_to_{to_frame}"
-        print(transform)
+        #print(transform)
 
         # Get transformation from geodepy.constants
         trans = getattr(gc, transform)
@@ -421,8 +424,8 @@ def dynamic_to_dynamic_trans(x, y, z, from_ref, to_ref, from_epoch, to_epoch, pl
 
         i+=1
 
-    print("")
-    print("Completed Transformation")
+    #print("")
+    #print("Completed Transformation")
     return round(x,4), round(y, 4), round(z, 4), vcv
 
 def universal_transform(x, y, z, from_ref, to_ref, from_epoch=None, to_epoch=None, plate_motion="auto", vcv=None, return_type="xyz", ignore_errors=False):
@@ -491,8 +494,7 @@ def universal_transform(x, y, z, from_ref, to_ref, from_epoch=None, to_epoch=Non
             raise ValueError(f"VCV must be shape (3,3), got {vcv.shape}")
     
     # If using Australian plate motion ("aus"), check point is on australian plate
-    plates = pp.build_plate_index("other_files/MORVEL56_plates.dig")
-    plate_id = pp.plate_from_xyz(x, y, z, plates)
+    plate_id = pp.plate_from_xyz(x, y, z, PLATES)
 
     if plate_motion == "aus" and plate_id != "AU" and not ignore_errors:
         raise ValueError("Point is not on the australia plate. Can not use Australian plate motion.")
@@ -501,8 +503,7 @@ def universal_transform(x, y, z, from_ref, to_ref, from_epoch=None, to_epoch=Non
     aus_frames = ("GDA94", "GDA2020", "AGD66", "AGD84", "ATRF2020")
     
     if (from_ref in aus_frames) or (to_ref in aus_frames):
-        plates = pp.build_plate_index("other_files/EEZ_australia_approx.dig")
-        plate_id = pp.plate_from_xyz(x, y, z, plates)
+        plate_id = pp.plate_from_xyz(x, y, z, EEZ_PLATE)
 
         if plate_id is None and not ignore_errors:
             raise ValueError("Point is not within Australia's EEZ while using Austalian refernce frame.")
@@ -540,10 +541,12 @@ def universal_transform(x, y, z, from_ref, to_ref, from_epoch=None, to_epoch=Non
         raise ValueError("Can only return mga coordinates in enu. return_type must be \"enu\"")
 
     #Finished input validation
+    '''
     print()
     print(f"Completing a {trans_type} transformation")
     print("")
     print("Steps: ")
+    '''
 
     # Choose the correct function for the transformation type
     if trans_type == "static_to_static":

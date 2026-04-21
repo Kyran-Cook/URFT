@@ -608,7 +608,10 @@ def csv_transformation(file_path, csv_params, transform_params):
         df = csv_transformation_enu(df, csv_params, transform_params)
 
     # --- Write output ---
-    input_path = Path(file_path.name)
+    try:
+        input_path = Path(file_path.name)
+    except:
+        input_path = Path(file_path)
     output_path = input_path.with_stem(input_path.stem + "_transformed")
     df.to_csv(output_path, index=False)
 
@@ -886,14 +889,14 @@ csv_xyz = CSVCoordinateMapping("xyz", None, 1, 2, 3)
 csv_llh_dd = CSVCoordinateMapping("llh", "dd", lat_deg=1,lon_deg=2,el_height=3)
 csv_llh_ddm = CSVCoordinateMapping("llh", "ddm", lat_deg=1,lat_min=2, lon_deg=3, lon_min=4, el_height=5)
 csv_llh_dms = CSVCoordinateMapping("llh", "dms", lat_deg=1,lat_min=2,lat_sec=3, lon_deg=4, lon_min=5,lon_sec=6, el_height=7)
-csv_enu = CSVCoordinateMapping("enu", None, zone=1, east=2, north=3, el_height=4)
+csv_enu = CSVCoordinateMapping("enu", None, zone=4, east=1, north=2, el_height=3)
 
 #params.validate_basic()
 
 #out = universal_transform.universal_transform(-4130636.759, 2894953.142, -3890530.249, **params_xyz.to_kwargs())
 #print(out)
 
-#print(csv_transformation("/home/ubuntu/URFT/test_files/test_xyz.csv", csv_xyz, params_xyz))
+print(csv_transformation("/home/ubuntu/tests/Points_260412_1000pts.csv", csv_enu, params_enu))
 #print(csv_transformation("/home/ubuntu/URFT/test_files/test_llh_dd.csv", csv_llh_dd, params_llh))
 #print(csv_transformation("/home/ubuntu/URFT/test_files/test_llh_ddm.csv", csv_llh_ddm, params_llh))
 #print(csv_transformation("/home/ubuntu/URFT/test_files/test_llh_dms.csv", csv_llh_dms, params_llh))
