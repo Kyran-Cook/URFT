@@ -613,7 +613,7 @@ csv_llh_ddm = CSVCoordinateMapping("llh", "ddm", lat_deg=1,lat_min=2, lon_deg=3,
 csv_llh_dms = CSVCoordinateMapping("llh", "dms", lat_deg=1,lat_min=2,lat_sec=3, lon_deg=4, lon_min=5,lon_sec=6, el_height=7)
 csv_enu = CSVCoordinateMapping("enu", None, zone=4, east=1, north=2, el_height=3)
 
-print(csv_transformation("/home/ubuntu/tests/Points_260412_1000pts.csv", csv_enu, params_enu))
+#print(csv_transformation("/home/ubuntu/tests/Points_260412_1000pts.csv", csv_enu, params_enu))
 #print(csv_transformation("/home/ubuntu/URFT/test_files/test_llh_dd.csv", csv_llh_dd, params_llh))
 #print(csv_transformation("/home/ubuntu/URFT/test_files/test_llh_ddm.csv", csv_llh_ddm, params_llh))
 #print(csv_transformation("/home/ubuntu/URFT/test_files/test_llh_dms.csv", csv_llh_dms, params_llh))

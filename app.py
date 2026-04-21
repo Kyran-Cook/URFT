@@ -63,6 +63,11 @@ DEFAULTS = {
 
 }
 
+LOGO_PATH = "other_files/geodepy-logo-light.png"
+PLATES_PATH = "other_files/PB2002_boundaries.json"
+EEZ_PATH = "other_files/EEZ_limits.geojson"
+SHELF_PATH = "other_files/Continental_Shelf_limits.geojson"
+
 for k, v in DEFAULTS.items():
     st.session_state.setdefault(k, v)
 
@@ -102,7 +107,7 @@ def point_page():
         layout="wide"
     )
 
-    st.logo("geodepy-logo-light.png", size="large")
+    st.logo(LOGO_PATH, size="large")
 
     st.title("Universal Reference Frame Transformation")
     st.caption(
@@ -443,13 +448,13 @@ def point_page():
                     "label": ["Transformed Point"]
                 })
 
-                with open("PB2002_boundaries.json", "r") as f:
+                with open(PLATES_PATH, "r") as f:
                     plates_geojson = json.load(f)
 
-                with open("Exclusive Economic Zone (Perth Treaty) limits.geojson", "r") as f:
+                with open(EEZ_PATH, "r") as f:
                     eez_geojson = json.load(f)
                 
-                with open("Continental Shelf limits.geojson", "r") as f:
+                with open(SHELF_PATH, "r") as f:
                     shelf_geojson = json.load(f)
 
                 for feat in plates_geojson.get("features", []):
@@ -553,7 +558,7 @@ def batch_page():
         layout="wide"
     )
 
-    st.logo("geodepy-logo-light.png", size="large")
+    st.logo(LOGO_PATH, size="large")
 
     st.title("Universal Reference Frame Transformation (Batch Processing)")
     st.caption(
@@ -893,13 +898,13 @@ def batch_page():
                     "label": [f"Transformed Point {i+1}" for i in range(len(map_coords))]
                 })
 
-                with open("PB2002_boundaries.json", "r") as f:
+                with open(PLATES_PATH, "r") as f:
                     plates_geojson = json.load(f)
 
-                with open("Exclusive Economic Zone (Perth Treaty) limits.geojson", "r") as f:
+                with open(EEZ_PATH, "r") as f:
                     eez_geojson = json.load(f)
                 
-                with open("Continental Shelf limits.geojson", "r") as f:
+                with open(SHELF_PATH, "r") as f:
                     shelf_geojson = json.load(f)
 
                 for feat in plates_geojson.get("features", []):
