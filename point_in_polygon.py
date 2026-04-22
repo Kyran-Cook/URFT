@@ -497,6 +497,6 @@ def universal_plate_motion_transformation(x ,y, z, from_epoch, to_epoch, vcv=Non
     transformation = plate_transformation(plate_id, poles_file, ref_epoch=ref_epoch)
 
     # Complete transformation between given dates
-    xtrans, ytrans, ztrans, vcv = transform.plate_motion_transformation(x, y, z, from_epoch, to_epoch, transformation, vcv, verbose)
+    xtrans, ytrans, ztrans, vcv = transform.plate_motion_transformation(x, y, z, from_epoch, to_epoch, transformation, vcv)
 
     return xtrans, ytrans, ztrans, vcv

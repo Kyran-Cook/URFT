@@ -410,10 +410,10 @@ def dynamic_to_dynamic_trans(x, y, z, from_ref, to_ref, from_epoch, to_epoch, pl
 
     # Decide which plate motion to use
     if plate_motion == "auto":
-        x, y, z, vcv = pp.universal_plate_motion_transformation(x, y, z, from_epoch, to_epoch, vcv, verbose)
+        x, y, z, vcv = pp.universal_plate_motion_transformation(x, y, z, from_epoch, to_epoch, vcv, verbose=verbose)
 
     elif plate_motion == "aus":
-        x, y, z, vcv = tr.plate_motion_transformation(x, y, z, from_epoch, to_epoch, gc.itrf2014_to_gda2020, vcv, verbose)
+        x, y, z, vcv = tr.plate_motion_transformation(x, y, z, from_epoch, to_epoch, gc.itrf2014_to_gda2020, vcv)
 
     else:
         raise ValueError("plate_motion must be either auto or aus")
