@@ -1,4 +1,9 @@
-from __future__ import annotations
+#!/usr/bin/env python3
+
+"""
+Geoscience Australia
+File Transformation Module
+"""
 
 import universal_transform
 
@@ -10,16 +15,6 @@ import numpy as np
 import pandas as pd
 import numpy as np
 from pathlib import Path
-
-# This file will transform different file types between referene frames.
-# The supprted files types are as follows:
-# - .csv
-# - .shp
-# - .json
-# - .tif
-# - .dxf(maybe)
-
-# These files are returned in the same format they are given
 
 @dataclass(slots=True)
 class TransformParams:
@@ -204,27 +199,42 @@ class CSVCoordinateMapping:
             )
 
 def csv_transformation_xyz(df, csv_params, transform_params):
+    """
+    Transforms XYZ coordinates in a DataFrame
+
+    :param df: DataFrame containing the coordinates to transform from a CSV file
+    :type df: pd.DataFrame
+    :param csv_params: Mapping of coordinate columns in the DataFrame
+    :type csv_params: CSVCoordinateMapping
+    :param transform_params: Parameters for the transformation
+    :type transform_params: TransformParams
+    :return: DataFrame with transformed coordinates added as new columns
+    :rtype: pd.DataFrame
+    """
+    # Setup variables
+    kwargs = transform_params.to_kwargs()
+    return_type = transform_params.return_type.lower()
+    angle_return_type = transform_params.angle_return_type.lower() if transform_params.angle_return_type is not None else None
+    
+    # Create array of input coordinates
     xs = df[csv_params.x].to_numpy(dtype=float)
     ys = df[csv_params.y].to_numpy(dtype=float)
     zs = df[csv_params.z].to_numpy(dtype=float)
 
-    kwargs = transform_params.to_kwargs()
-    return_type = transform_params.return_type.lower()
-    angle_return_type = transform_params.angle_return_type.lower() if transform_params.angle_return_type is not None else None
-
+    # Complete transformation for each row
     results = [
         universal_transform.universal_transform(float(x), float(y), float(z), **kwargs)
         for x, y, z in zip(xs, ys, zs)
     ]
     results = np.array(results)  # shape (N, 3) or (N, 6) with VCV
 
-    #create header array
+    # Create header array
     header_arr = [None] * len(df.columns)
     header_arr[csv_params.x] = "x"
     header_arr[csv_params.y] = "y"
     header_arr[csv_params.z] = "z"
 
-    #Make correct output for return type
+    # Make correct output for return type, outputting to new columns
     if return_type == None or return_type == "xyz":
 
         df[len(df.columns)] = [r["coords"]["x"] for r in results]
@@ -238,6 +248,7 @@ def csv_transformation_xyz(df, csv_params, transform_params):
 
     if return_type == "llh":
 
+        # Make correct output for angle return type
         if angle_return_type == "dd":
             df[len(df.columns)] = [r["coords"]["lat"] for r in results]
             df[len(df.columns) + 1] = [r["coords"]["lon"] for r in results]
@@ -306,12 +317,25 @@ def csv_transformation_xyz(df, csv_params, transform_params):
         header_arr.append("north_transformed")
         header_arr.append("el_height_transformed")
         header_arr.append("zone_transformed")
-        
+
+    # Add correct headers to all columns, including original and new
     df.columns = header_arr
     return df
 
 def csv_transformation_llh(df, csv_params, transform_params):
-    
+    """
+    Transforms LLH coordinates in a DataFrame
+
+    :param df: DataFrame containing the coordinates to transform from a CSV file
+    :type df: pd.DataFrame
+    :param csv_params: Mapping of coordinate columns in the DataFrame
+    :type csv_params: CSVCoordinateMapping
+    :param transform_params: Parameters for the transformation
+    :type transform_params: TransformParams
+    :return: DataFrame with transformed coordinates added as new columns
+    :rtype: pd.DataFrame
+    """
+    # Setup variables
     angle_format = csv_params.angle_format.lower() if csv_params.angle_format is not None else None
     angle_return_type = transform_params.angle_return_type.lower() if transform_params.angle_return_type is not None else None
     kwargs = transform_params.to_kwargs()
@@ -338,6 +362,7 @@ def csv_transformation_llh(df, csv_params, transform_params):
 
     heights = df[csv_params.el_height].to_numpy(dtype=float)
 
+    # Complete transformation for each row
     results = [
                 universal_transform.universal_transform_llh(float(lat), float(lon), float(h), **kwargs)
                 for lat, lon, h in zip(lats, lons, heights)
@@ -368,7 +393,7 @@ def csv_transformation_llh(df, csv_params, transform_params):
             "angle_format must be one of: 'dd', 'ddm', 'dms'"
         )
     
-    #Make correct output for return type
+    # Make correct output for return type, outputting to new columns
     if return_type == "xyz":
 
         df[len(df.columns)] = [r["coords"]["x"] for r in results]
@@ -381,7 +406,8 @@ def csv_transformation_llh(df, csv_params, transform_params):
 
 
     if return_type is None or return_type == "llh":
-
+        
+        # Make correct output for angle return type
         if angle_return_type == "dd":
             df[len(df.columns)] = [r["coords"]["lat"] for r in results]
             df[len(df.columns) + 1] = [r["coords"]["lon"] for r in results]
@@ -451,20 +477,36 @@ def csv_transformation_llh(df, csv_params, transform_params):
         header_arr.append("el_height_transformed")
         header_arr.append("zone_transformed")
         
+    # Add correct headers to all columns, including original and new
     df.columns = header_arr
     return df
 
 def csv_transformation_enu(df, csv_params, transform_params):
-        
+    """
+    Transforms ENU coordinates in a DataFrame
+
+    :param df: DataFrame containing the coordinates to transform from a CSV file
+    :type df: pd.DataFrame
+    :param csv_params: Mapping of coordinate columns in the DataFrame
+    :type csv_params: CSVCoordinateMapping
+    :param transform_params: Parameters for the transformation
+    :type transform_params: TransformParams
+    :return: DataFrame with transformed coordinates added as new columns
+    :rtype: pd.DataFrame
+    """
+    
+    # Setup variables
     angle_return_type = transform_params.angle_return_type.lower() if transform_params.angle_return_type is not None else None
     kwargs = transform_params.to_kwargs()
     return_type = transform_params.return_type.lower()
-        
+    
+    # Create array of input coordinates
     easts  = df[csv_params.east].to_numpy(dtype=float)
     norths = df[csv_params.north].to_numpy(dtype=float)
     heights = df[csv_params.el_height].to_numpy(dtype=float)
     zones  = df[csv_params.zone].to_numpy()
 
+    # Complete transformation for each row
     results = [
         universal_transform.universal_transform_enu(float(e), float(n), float(h), int(z), **kwargs)
         for e, n, h, z in zip(easts, norths, heights, zones)
@@ -478,7 +520,7 @@ def csv_transformation_enu(df, csv_params, transform_params):
     header_arr[csv_params.el_height] = "el_height"
     header_arr[csv_params.zone] = "zone"
 
-    # Make correct output for return type
+    # Make correct output for return type, outputting to new columns
     if return_type == "xyz":
 
         df[len(df.columns)] = [r["coords"]["x"] for r in results]
@@ -492,6 +534,7 @@ def csv_transformation_enu(df, csv_params, transform_params):
 
     if return_type == "llh":
 
+        # Make correct output for angle return type
         if angle_return_type == "dd":
             df[len(df.columns)] = [r["coords"]["lat"] for r in results]
             df[len(df.columns) + 1] = [r["coords"]["lon"] for r in results]
@@ -560,7 +603,8 @@ def csv_transformation_enu(df, csv_params, transform_params):
         header_arr.append("north_transformed")
         header_arr.append("el_height_transformed")
         header_arr.append("zone_transformed")
-        
+    
+    # Add correct headers to all columns, including original and new
     df.columns = header_arr
     return df
 
@@ -569,19 +613,26 @@ def csv_transformation(file_path, csv_params, transform_params):
     """
     Reads a CSV, transforms each coordinate row, and writes a new CSV
     with a _transformed suffix. All original columns are preserved;
-    coordinate columns are overwritten with transformed values.
-
-    Returns the output file path.
+    new columns are added for the transformed coordinates.
+    
+    :param file_path: Path to the input CSV file
+    :type file_path: str or Path
+    :param csv_params: Mapping of coordinate columns in the csv
+    :type csv_params: CSVCoordinateMapping
+    :param transform_params: Parameters for the transformation
+    :type transform_params: TransformParams
+    :return: Path to the output CSV file with transformed coordinates
+    :rtype: str
     """
     
-    # Here you would read the CSV, apply transformations, and write the output
     csv_params.validate()
     transform_params.validate_basic()
 
+    # Read CSV without header
     df = pd.read_csv(file_path, header=None)
     coord_type = csv_params.coord_type.lower()
 
-    # --- Extract coordinates as numpy arrays ---
+    # Apply correct transformation based on coord_type
     if coord_type == "xyz":
         df = csv_transformation_xyz(df, csv_params, transform_params)
 
@@ -591,7 +642,7 @@ def csv_transformation(file_path, csv_params, transform_params):
     elif coord_type == "enu":
         df = csv_transformation_enu(df, csv_params, transform_params)
 
-    # --- Write output ---
+    # Write output
     try:
         input_path = Path(file_path.name)
     except:
@@ -602,6 +653,8 @@ def csv_transformation(file_path, csv_params, transform_params):
     print(f"Transformed {len(df)} rows to: {output_path}")
     return str(output_path)
 
+
+# Test cases
 params_xyz = TransformParams("ITRF2014", "MGA94", dt.date(2014,1,1), plate_motion="aus", return_type="enu")
 params_llh = TransformParams("ITRF2014", "GDA94", dt.date(2014,1,1), plate_motion="aus", return_type="xyz")
 params_enu = TransformParams("MGA94", "MGA2020", dt.date(2014,1,1), plate_motion="aus", return_type="enu")

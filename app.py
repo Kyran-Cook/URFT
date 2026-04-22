@@ -1,3 +1,10 @@
+#!/usr/bin/env python3
+
+"""
+Geoscience Australia
+Transformer GUI
+"""
+
 import streamlit as st
 from datetime import date
 import universal_transform as ut
@@ -75,16 +82,14 @@ def reset_all():
     for k, v in DEFAULTS.items():
         st.session_state[k] = v
 
-def is_dynamic(frame: str) -> bool:
+def is_dynamic(frame):
     return frame in DYNAMIC_FRAMES
 
-
-def parse_float(s: str):
+def parse_float(s):
     try:
         return float(s)
     except Exception:
         return None
-
 
 def swap_frames():
     # Swap current values
@@ -98,9 +103,14 @@ def swap_frames():
     )
 
 def point_page():
-# ----------------------------
-# Streamlit page config
-# ----------------------------
+    """
+    Page for single point transformations.
+
+    User can enter from and to reference frames, epochs if needed, input and output corrdinate types.
+
+    Gives final transformed coordinate, transformation path and map with point location.
+    """
+
     st.set_page_config(
         page_title="Universal Transformation Calculator",
         page_icon="🌐",
@@ -113,15 +123,14 @@ def point_page():
     st.caption(
         "This tool will let you transform from any reference frame to any other reference frame. "
     )
-    # ----------------------------
-    # Layout
-    # ----------------------------
+
+    # Split page in two columns for inputs and outputs
     left, right = st.columns([0.55, 0.45], gap="large")
 
     with left:
         st.subheader("Inputs")
 
-        # --- Frame selection
+        # Select reference frames
         c1, c2, c3 = st.columns([0.46, 0.08, 0.46])
         with c1:
             from_frame = st.selectbox(
@@ -141,13 +150,13 @@ def point_page():
             )
 
 
-
+        # Find if epoch is needed
         dynamic_required = is_dynamic(from_frame) or is_dynamic(to_frame)
 
         if dynamic_required:
             st.info("Dynamic frame selected — an epoch is required.")
 
-        # --- Epoch input
+        # Epoch input
         coord_epoch = None
         target_epoch = None
         from_epoch_required = False
@@ -155,12 +164,15 @@ def point_page():
 
         if dynamic_required:
             st.markdown("### Epoch")
+            
+            # Create three columns to match reference frame selection layout
             c1, c2, c3 = st.columns([0.46, 0.08, 0.46])
             with c1:
+                # Only activate date input if required
                 from_epoch_required = is_dynamic(from_frame)
                 coord_epoch = st.date_input(
                     "From epoch (date)", 
-                    value=date(2020,1,1) if from_epoch_required else None,
+                    #value=date(2020,1,1) if from_epoch_required else None,
                     format="YYYY-MM-DD",
                     disabled=not from_epoch_required,
                     min_value=date(1900,1,1),
@@ -169,6 +181,7 @@ def point_page():
                     key="from_epoch")
 
             with c3:
+                # Only activate date input if required
                 to_epoch_required = is_dynamic(to_frame)
                 target_epoch = st.date_input(
                     "To epoch (date)", 
@@ -185,18 +198,12 @@ def point_page():
 
         st.divider()
 
-        # --- Input / Output coordinate type
+        # Input coordinate type
 
         st.markdown("### Input Coordinate Type")
 
         # Automatically change to enu if MGA is chosen
         from_enu_needed = from_frame in ("MGA94", "MGA2020")
-
-        if "input_type" not in st.session_state:
-            st.session_state["input_type"] = "XYZ"
-
-        if "input_type_last_non_mga" not in st.session_state:
-            st.session_state["input_type_last_non_mga"] = st.session_state["input_type"]
 
         # If MGA in from_frame save last input_type and change to ENU
         if from_enu_needed:
@@ -224,9 +231,10 @@ def point_page():
 
         st.markdown("### Coordinate input")
 
-        # --- Coordinate input panels
+        # Coordinate input panels, different for the different input types.
         xyz = llh = enu = None
 
+        # For xyz have three inputs
         if input_type == "XYZ":
             cx, cy, cz = st.columns(3)
             with cx:
@@ -240,8 +248,10 @@ def point_page():
             except:
                 pass
 
+        # For llh have different inputs depending on angle type
         elif input_type == "LLH":
 
+            # Select angle type
             llh_type = st.segmented_control(
                 "Coordinate Notation",
                 ["Decimal Degrees", "Degrees Minutes Seconds", "Degrees Decimal Minutes"],
@@ -252,6 +262,7 @@ def point_page():
             )
             st.caption("Use - for South, + for North.")
 
+            # If angle type is decimal degrees have simple lat lon height inputs
             if llh_type == "Decimal Degrees":
                 c8, c9 = st.columns(2)
                 with c8:
@@ -263,7 +274,8 @@ def point_page():
                     llh = {"lat": float(lat), "lon": float(lon), "h": float(h), "lat_format": llh_type}
                 except:
                     pass
-
+            
+            # If angle type is DMS have inputs for degrees, minutes and seconds and convert to decimal degrees
             if llh_type == "Degrees Minutes Seconds":
                 c8, c9, c10 = st.columns(3)
                 with c8:
@@ -284,6 +296,7 @@ def point_page():
                 except:
                     pass
                 
+            # If angle type is DDM have inputs for degrees and minutes and convert to decimal degrees
             if llh_type == "Degrees Decimal Minutes":
                 c8, c9 = st.columns(2)
                 with c8:
@@ -300,6 +313,7 @@ def point_page():
                 except:
                     pass
 
+        # For enu have inputs for easting, northing, up and zone
         else:  # ENU
             ce, cn, cu = st.columns(3)
             with ce:
@@ -314,18 +328,12 @@ def point_page():
             except:
                 pass
 
-        # --- Output options
+        # Output options
         st.divider()
         st.markdown("### Coordinate input")
 
         # Automatically change to enu if MGA is chosen
         to_enu_needed = to_frame in ("MGA94", "MGA2020")
-
-        if "output_type" not in st.session_state:
-            st.session_state["output_type"] = "XYZ"
-
-        if "output_type_last_non_mga" not in st.session_state:
-            st.session_state["output_type_last_non_mga"] = st.session_state["output_type"]
 
         # If MGA in from_frame save last input_type and change to ENU
         if to_enu_needed:
@@ -339,7 +347,7 @@ def point_page():
                 st.session_state["output_type"] = st.session_state["output_type_last_non_mga"]
                 st.info("Can't select ENU when not using MGA as to reference frame.")
 
-        # Control for what input type
+        # Control for what output type
         output_type = st.segmented_control(
             "Output coordinate type",
             ["XYZ", "LLH", "ENU"],
@@ -351,7 +359,7 @@ def point_page():
             key="output_type"
         )
 
-        # --- Transform button
+        # Transform and reset button
         st.divider()
 
         crun, creset = st.columns([0.1, 0.8])
@@ -360,10 +368,11 @@ def point_page():
         with creset:
             st.button("Reset to defaults", type="secondary", on_click=reset_all)
 
-
+    # Output panel
     with right:
         st.subheader("Output")
 
+        # If transform button hasn't been hit show message to run transformation, otherwise show results
         if not run:
             st.write("Run a transformation to see results.")
             st.caption(
@@ -379,9 +388,9 @@ def point_page():
 
             if errors:
                 st.error("Cannot run transformation:\n- " + "\n- ".join(errors))
+            
             else:
-                # Placeholder result formatting (wire this to your real engine)
-
+                # Write out summary of transformation
                 st.markdown("#### Summary")
                 if from_epoch_required:
                     st.write(f"**From:** {from_frame} at {coord_epoch}")
@@ -393,11 +402,11 @@ def point_page():
                 else:
                     st.write(f"**To:** {to_frame}")
 
+                # Transform point to WGS84 Ensemble for mapping, using target epoch if dynamic, otherwise default to 2020-01-01
                 if target_epoch:
                     map_epoch = target_epoch
                 else:
                     map_epoch = date(2020,1,1)
-
 
                 if input_type == "XYZ":
                     map_result = ut.universal_transform(xyz["x"], xyz["y"], xyz["z"], from_frame, "WGS84 Ensemble", coord_epoch, map_epoch, "auto", None, "llh", True)
@@ -406,6 +415,7 @@ def point_page():
                 elif input_type == "ENU":
                     map_result = ut.universal_transform_enu(enu["e"], enu["n"], enu["u"], enu["zone"], from_frame, "WGS84 Ensemble", coord_epoch, map_epoch, "auto", None, "llh", True)
 
+                # Transform point to target frame and capture printed output
                 buf = io.StringIO()
                 with redirect_stdout(buf), redirect_stderr(buf):
                     try:
@@ -421,11 +431,13 @@ def point_page():
                 printed_output = buf.getvalue()
                 
                 st.markdown("#### Path")
+                # Print output from transformation to show transofmration path
                 st.code(
                     f"{printed_output}",
                     language="text",
                 )
 
+                # Show transformed coordinate in output type selected by user
                 st.markdown("#### Result")
                 try:
                     if output_type == "XYZ":
@@ -442,12 +454,14 @@ def point_page():
                 except:
                     pass
 
+                # Create data frame for mapping point
                 df = pd.DataFrame({
                     "lat": [map_result["coords"]["lat"]],
                     "lon": [map_result["coords"]["lon"]],
                     "label": ["Transformed Point"]
                 })
 
+                # Open layers for map
                 with open(PLATES_PATH, "r") as f:
                     plates_geojson = json.load(f)
 
@@ -466,6 +480,7 @@ def point_page():
                 for feat in shelf_geojson.get("features", []):
                     feat.setdefault("properties", {})["label"] = "Continental Shelf"
 
+                # Create layers for map
                 plate_layer = pdk.Layer(
                     "GeoJsonLayer",
                     data=plates_geojson,
@@ -520,6 +535,7 @@ def point_page():
                     zoom=3,
                 )
 
+                # Display map and legend
                 st.pydeck_chart(
                     pdk.Deck(
                         layers=[plate_layer, point_layer, eez_layer, shelf_layer],
@@ -536,8 +552,14 @@ def point_page():
                 st.markdown("🟢 **Continental Shelf**")
 
 def batch_page():
-    
-    
+    """
+    Page for batch processing transformations.
+
+    User can enter from and to reference frames, epochs if needed, input and output corrdinate types and give csv file to be transformed.
+
+    Gives transformed csv file and map with point locations.
+    """
+    # Setup some default session states for batch processing
     if "has_result" not in st.session_state:
         st.session_state.has_result = False
     if "result_csv_path" not in st.session_state:
@@ -547,11 +569,6 @@ def batch_page():
     if "map_coords" not in st.session_state:
         st.session_state.map_coords = None
 
-
-
-    # ----------------------------
-    # Streamlit page config
-    # ----------------------------
     st.set_page_config(
         page_title="Universal Transformation Calculator",
         page_icon="🌐",
@@ -564,15 +581,14 @@ def batch_page():
     st.caption(
         "This tool will let you transform from any reference frame to any other reference frame. "
     )
-    # ----------------------------
-    # Layout
-    # ----------------------------
+
+    # Page spilt into two for inputs and file upload/results
     left, right = st.columns([0.55, 0.45], gap="large")
 
     with left:
         st.subheader("Inputs")
 
-        # --- Frame selection
+        # Frame selection
         c1, c2, c3 = st.columns([0.46, 0.08, 0.46])
         with c1:
             from_frame = st.selectbox(
@@ -596,12 +612,13 @@ def batch_page():
         if dynamic_required:
             st.info("Dynamic frame selected — an epoch is required.")
 
-        # --- Epoch input
+        # Epoch input
         coord_epoch = None
         target_epoch = None
         from_epoch_required = False
         to_epoch_required = False
 
+        # Only show epoch inputs if dynamic frame selected, and only activate relevant epoch input if only one frame is dynamic
         if dynamic_required:
             st.markdown("### Epoch")
             c1, c2, c3 = st.columns([0.46, 0.08, 0.46])
@@ -634,18 +651,12 @@ def batch_page():
 
         st.divider()
 
-        # --- Input / Output coordinate type
+        # Input coordinate type
 
         st.markdown("### Input Coordinate Type")
 
         # Automatically change to enu if MGA is chosen
         from_enu_needed = from_frame in ("MGA94", "MGA2020")
-
-        if "input_type" not in st.session_state:
-            st.session_state["input_type"] = "XYZ"
-
-        if "input_type_last_non_mga" not in st.session_state:
-            st.session_state["input_type_last_non_mga"] = st.session_state["input_type"]
 
         # If MGA in from_frame save last input_type and change to ENU
         if from_enu_needed:
@@ -659,7 +670,7 @@ def batch_page():
                 st.session_state["input_type"] = st.session_state["input_type_last_non_mga"]
                 st.info("Can't select ENU when not using MGA as from reference frame.")
 
-        # Control for what input type
+        # Control for input type
         input_type = st.segmented_control(
             "Input coordinate type",
             ["XYZ", "LLH", "ENU"],
@@ -671,6 +682,7 @@ def batch_page():
             key="input_type"
         )
 
+        # If input type is LLH have option for angle format
         if input_type == "LLH":
 
             llh_type = st.segmented_control(
@@ -682,18 +694,12 @@ def batch_page():
                 key="llh_type"
             )
 
-        # --- Output options
+        # Output options
         st.divider()
         st.markdown("### Coordinate output")
 
         # Automatically change to enu if MGA is chosen
         to_enu_needed = to_frame in ("MGA94", "MGA2020")
-
-        if "output_type" not in st.session_state:
-            st.session_state["output_type"] = "XYZ"
-
-        if "output_type_last_non_mga" not in st.session_state:
-            st.session_state["output_type_last_non_mga"] = st.session_state["output_type"]
 
         # If MGA in from_frame save last input_type and change to ENU
         if to_enu_needed:
@@ -707,7 +713,7 @@ def batch_page():
                 st.session_state["output_type"] = st.session_state["output_type_last_non_mga"]
                 st.info("Can't select ENU when not using MGA as to reference frame.")
 
-        # Control for what input type
+        # Control for output type
         output_type = st.segmented_control(
             "Output coordinate type",
             ["XYZ", "LLH", "ENU"],
@@ -719,6 +725,7 @@ def batch_page():
             key="output_type"
         )
 
+        # If output type is LLH have option for angle format
         if output_type == "LLH":
 
             llh_out_type = st.segmented_control(
@@ -730,7 +737,7 @@ def batch_page():
                 key="llh_out_type"
             )
 
-        # --- Transform button
+        # Transform/reset button
         st.divider()
 
         crun, creset = st.columns([0.1, 0.8])
@@ -739,19 +746,19 @@ def batch_page():
         with creset:
             st.button("Reset to defaults", type="secondary", on_click=reset_all)
 
-
+    # File upload and results panel
     with right:
         st.subheader("File Input")
 
+        # Upload file
         uploaded_file = st.file_uploader("Upload a CSV file with coordinates to transform. CSV file should not have a header.", type=["csv"], accept_multiple_files=False, key="uploaded_file")
-
-
 
         if uploaded_file is not None:
             try:
                 df = pd.read_csv(uploaded_file)
                 st.success("File uploaded successfully!")
                 
+                # Depending on input type have different column selection for coordinates, and save column indices for transformation
                 if input_type == "XYZ":
 
                     x_col = df.columns.get_loc(st.selectbox("x column", options=df.columns, key="x_col"))
@@ -759,6 +766,8 @@ def batch_page():
                     z_col = df.columns.get_loc(st.selectbox("z column", options=df.columns, key="z_col"))
 
                 elif input_type == "LLH":
+                    
+                    # Depending on angle format have different column selection for coordinates, and save column indices for transformation
                     if llh_type == "Decimal Degrees":
                         c1, c2 = st.columns(2)
                         with c1:
@@ -807,6 +816,7 @@ def batch_page():
 
         st.divider()
 
+        # Output section
         st.subheader("Output")
 
         if run:
@@ -829,8 +839,8 @@ def batch_page():
             if errors:
                 st.error("Cannot run transformation:\n- " + "\n- ".join(errors))
             else:
-                # Placeholder result formatting (wire this to your real engine)
-
+                
+                # Write out summary of transformation
                 st.markdown("#### Summary")
                 if from_epoch_required:
                     st.write(f"**From:** {from_frame} at {coord_epoch}")
@@ -847,7 +857,7 @@ def batch_page():
                 else:
                     map_epoch = date(2020,1,1)
 
-                # Setup classes
+                # Setup classes for transformation based on user inputs
                 trans_params = ft.TransformParams(from_frame, to_frame, coord_epoch, target_epoch, "aus", None, output_type, angle_return_type=llh_out_type if output_type=="LLH" else None)
                 trans_params_map = ft.TransformParams(from_frame, "WGS84 Ensemble", coord_epoch, map_epoch, "auto", None, "llh", angle_return_type="dd", ignore_errors=True)
 
@@ -870,6 +880,7 @@ def batch_page():
                 map_coords = pd.read_csv(map_csv)
                 os.remove(map_csv)
 
+                # Complete transformation of user csv and handle any errors
                 try:
                     result_csv = ft.csv_transformation(uploaded_file, csv_params, trans_params)
                 except Exception as e:
@@ -877,6 +888,7 @@ def batch_page():
                     result_csv = None
                     st.session_state.has_result = False
                 
+                # Have option to download transformed csv if transformation successful
                 if result_csv:
                     st.markdown("#### Result")
                     st.code(f"The transformed csv can be found at {result_csv}",language="text",)
@@ -898,6 +910,7 @@ def batch_page():
                     "label": [f"Transformed Point {i+1}" for i in range(len(map_coords))]
                 })
 
+                # Open each layer of map
                 with open(PLATES_PATH, "r") as f:
                     plates_geojson = json.load(f)
 
@@ -916,6 +929,7 @@ def batch_page():
                 for feat in shelf_geojson.get("features", []):
                     feat.setdefault("properties", {})["label"] = "Continental Shelf"
 
+                # Build each map layer
                 plate_layer = pdk.Layer(
                     "GeoJsonLayer",
                     data=plates_geojson,
@@ -952,8 +966,6 @@ def batch_page():
                     wrap_longitude=True
                 )
 
-                print(df)
-
                 point_layer = pdk.Layer(
                     "ScatterplotLayer",
                     data=df,
@@ -971,6 +983,7 @@ def batch_page():
                     zoom=3,
                 )
 
+                # Display map and legend
                 st.pydeck_chart(
                     pdk.Deck(
                         layers=[plate_layer, point_layer, eez_layer, shelf_layer],
@@ -993,5 +1006,6 @@ pages = [
     st.Page(batch_page, title="Batch Processing")
 ]
 
+# Run app with navigation for pages
 pg = st.navigation(pages, position="top")
 pg.run()

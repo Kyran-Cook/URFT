@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 """
-Geoscience Australia - Python Geodesy Package
+Geoscience Australia
 Universal Transformation Module
 """
 
@@ -22,6 +22,7 @@ with open("other_files/transformation_routes_v3.json", "r", encoding="utf-8") as
 ROUTES = ROUTING["routes"]
 DIRECT = ROUTING["direct_pairs"]
 
+# Build plate index for plate motion transformations
 PLATES = pp.build_plate_index("other_files/MORVEL56_plates.dig")
 EEZ_PLATE = pp.build_plate_index("other_files/EEZ_australia_approx.dig")
 
@@ -61,6 +62,7 @@ def resolve_path(src, dst):
     src = mga_parse(src)
     dst = mga_parse(dst)
 
+    # Look for path in json file
     key = f"{src}|{dst}"
     if key in ROUTES:
         return ROUTES[key]
@@ -391,7 +393,7 @@ def dynamic_to_dynamic_trans(x, y, z, from_ref, to_ref, from_epoch, to_epoch, pl
 
         # Find name of correct transformation
         transform = f"{from_frame}_to_{to_frame}"
-        #print(transform)
+        vprint(transform)
 
         # Get transformation from geodepy.constants
         trans = getattr(gc, transform)
@@ -596,6 +598,7 @@ def universal_transform(x, y, z, from_ref, to_ref, from_epoch=None, to_epoch=Non
         "vcv": vcv,
     }
 
+    # Give correct output format based on return_type
     if return_type.lower() == "xyz":
         output["coords"] = {
             "x": round(x, 4),
@@ -699,6 +702,7 @@ def universal_transform_llh(lat, lon, el_height, from_ref, to_ref, from_epoch=No
         "vcv": vcv,
     }
 
+    # Give correct output format based on return_type
     if return_type.lower() == "xyz":
         output["coords"] = {
             "x": round(x, 4),
@@ -808,6 +812,7 @@ def universal_transform_enu(east, north, el_height, zone, from_ref, to_ref, from
         "vcv": vcv,
     }
 
+    # Give correct output format based on return_type
     if return_type.lower() == "xyz":
         output["coords"] = {
             "x": round(x, 4),

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 """
-Geoscience Australia - Python Geodesy Package
+Geoscience Australia
 Point in Polygon Module
 """
 
@@ -393,13 +393,7 @@ def sd_drot_from_rms_and_pole(rms_mm_yr, lat_deg, lon_deg, radius_m=6378137.0):
 
     return sd_d_rx, sd_d_ry, sd_d_rz
 
-def plate_transformation(
-    plate_code,
-    poles_file,
-    ref_epoch = date(2020, 1, 1),
-    from_datum = "",
-    to_datum = "plate motion",
-):
+def plate_transformation(plate_code,poles_file,ref_epoch = date(2020, 1, 1),from_datum = "",to_datum = "plate motion",):
     """
     Build a GeodePy Transformation object for a plate code.
 
@@ -457,8 +451,7 @@ def plate_transformation(
         tf_sd=tf_sd
     )
 
-def universal_plate_motion_transformation(x ,y, z, 
-                                          from_epoch, to_epoch, vcv=None,
+def universal_plate_motion_transformation(x ,y, z, from_epoch, to_epoch, vcv=None,
                                           plate_file = "other_files/MORVEL56_plates.dig", 
                                           poles_file = "other_files/NNR-MORVEL56_poles.txt", 
                                           ref_epoch = date(2020, 1, 1), verbose=False):
