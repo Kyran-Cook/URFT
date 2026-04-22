@@ -1,0 +1,14 @@
+[theme]
+# Tailwind-inspired color palette
+primaryColor = "#3b82f6"           # Tailwind blue-500 - clean, modern primary
+backgroundColor = "#ffffff"        # Pure white background
+secondaryBackgroundColor = "#f8fafc" # Tailwind slate-50 - subtle gray
+textColor = "#0f172a"             # Tailwind slate-900 - dark, readable
+linkColor = "#2563eb"             # Tailwind blue-600 - slightly darker blue for links
+borderColor = "#e2e8f0"           # Tailwind slate-200 - light, clean borders
+showWidgetBorder = true
+baseRadius = "0.5rem"             # Tailwind's default border radius
+font = "Inter"                    # Inter for body text - modern, clean
+headingFont = "Inter"             # Inter for headings too - consistent
+codeFont = "JetBrainsMono"        # JetBrains Mono for code
+codeBackgroundColor = "#f1f5f9"   # Tailwind slate-100 - light code background
