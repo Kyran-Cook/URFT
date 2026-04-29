@@ -7,7 +7,7 @@ This repository also includes:
 - A batch file module (`file_transformer.py`) used for processing csv data.
 - A **Streamlit GUI** (`app.py`) for interactive single-point and batch transformations.
 
----
+
 
 ## Supported Reference Frames
 Transformations can be completed between any of the following frames.
@@ -30,7 +30,7 @@ Transformations can be completed between any of the following frames.
 
 `WGS84 (Transit)`, `WGS84 (G730)`, `WGS84 (G873)`, `WGS84 (G1150)`, `WGS84 (G1674)`, `WGS84 (G1762)`, `WGS84 (G2139)`, `WGS84 (G2296)`, `WGS84 Ensemble`
 
----
+
 
 ## Dependencies
 - GeodePy
@@ -42,7 +42,7 @@ For GUI:
 - Streamlit
 - pydeck
 
----
+
 
 ## Core Functionality
 Transformation can take place in any of the three coordinate types. Depending on which coordinate type is input will decide which function should be used.
@@ -86,7 +86,7 @@ universal_transform_enu(
 - `return_type`: one of `"xyz"`, `"llh"`, `"enu"`.
 - `ignore_errors`: When set to true will run transformation even if it shouldn't
 
----
+
 
 ## Epoch Requirements
 Epoch inputs depend on whether the source/target frames are static or dynamic.
@@ -96,7 +96,7 @@ Epoch inputs depend on whether the source/target frames are static or dynamic.
 - **Dynamic → Static:** `from_epoch` required
 - **Dynamic → Dynamic:** `from_epoch` and `to_epoch` required
 
----
+
 
 ## Output
 Output can be in any of the three coordinate types. All functions return a dictionary containing:
@@ -111,7 +111,7 @@ latitude = result['coords']['lat']
 longitude = results['coords']['lon']
 ```
 
----
+
 
 ## Streamlit GUI
 A Streamlit app is provided in `app.py` with two pages:
@@ -125,7 +125,7 @@ streamlit run app.py
 
 ![GUI Screenshot](docs/screenshot.PNG)
 
----
+
 
 ## Batch / File Transformation Helper
 `file_transformer.py` let you complete batch processing of points in a csv. To do so it has two classes to handle required data:
