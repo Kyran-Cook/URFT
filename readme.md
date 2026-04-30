@@ -55,6 +55,7 @@ universal_transform(
     from_epoch=None, to_epoch=None,
     plate_motion="auto", vcv=None,
     return_type="xyz", ignore_errors=False,
+    verbose=False
 )
 ```
 
@@ -66,6 +67,7 @@ universal_transform_llh(
     from_epoch=None, to_epoch=None,
     plate_motion="auto", vcv=None,
     return_type="llh", ignore_errors=False,
+    verbose=False
 )
 ```
 
@@ -77,6 +79,7 @@ universal_transform_enu(
     from_epoch=None, to_epoch=None,
     plate_motion="auto", vcv=None,
     return_type="enu", ignore_errors=False,
+    verbose=False
 )
 ```
 
@@ -85,7 +88,7 @@ universal_transform_enu(
 - `vcv`: optional 3×3 NumPy array for uncertainty propagation.
 - `return_type`: one of `"xyz"`, `"llh"`, `"enu"`.
 - `ignore_errors`: When set to true will run transformation even if it shouldn't
-
+- `verbose`: When set to true transformation path will be printed
 
 
 ## Epoch Requirements
