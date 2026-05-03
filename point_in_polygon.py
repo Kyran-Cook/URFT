@@ -21,7 +21,12 @@ import geodepy.convert as convert
 from geodepy.constants import Transformation, TransformationSD
 import geodepy.transform as transform
 
+from importlib.resources import files
+
 PLATE_ID_RE = re.compile(r"^[A-Z]{2}$")
+
+DEFAULT_PLATES_FILE = files("other_files") / "MORVEL56_plates.dig"
+DEFAULT_POLES_FILE = files("other_files") / "other_files/NNR-MORVEL56_poles.txt"
 
 def lon_to_180(lon):
     """
@@ -452,8 +457,8 @@ def plate_transformation(plate_code,poles_file,ref_epoch = date(2020, 1, 1),from
     )
 
 def universal_plate_motion_transformation(x ,y, z, from_epoch, to_epoch, vcv=None,
-                                          plate_file = "other_files/MORVEL56_plates.dig", 
-                                          poles_file = "other_files/NNR-MORVEL56_poles.txt", 
+                                          plate_file = DEFAULT_PLATES_FILE, 
+                                          poles_file = DEFAULT_POLES_FILE, 
                                           ref_epoch = date(2020, 1, 1), verbose=False):
     """
     Given ECEF XYZ coordinates, find the plate, find the plate motion and transform point.

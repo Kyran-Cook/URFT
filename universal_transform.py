@@ -15,16 +15,87 @@ import geodepy.constants as gc
 import geodepy.convert as con
 import point_in_polygon as pp
 
+from importlib.resources import files
+
+# Setup global variables
+PROJECTED_FRAMES = ["mga94", "mga2020"]
+
+# MGA to GDA dictionary
+MGA_NAMES = {"MGA94": "GDA94",
+             "MGA2020": "GDA2020"}
+
+# Changing frame names to GeodePy compliant name
+FRAME_PARSE = {"wgs84 (g2296)": "wgs84g2296",
+             "wgs84 (g2139)": "wgs84g2139",
+             "wgs84 (g1762)": "wgs84g1762",
+             "wgs84 (g1674)": "wgs84g1674",
+             "wgs84 (g1150)": "wgs84g1150",
+             "wgs84 (g873)": "wgs84g873",
+             "wgs84 (g730)": "wgs84g730",
+             "wgs84 (transit)": "wgs84trans",
+             "wgs84 ensemble": "wgs84ensemble"}
+
+# Transformation types not including projected coordinates
+TRANS_TYPE = {"GDA2020": "static",
+    "GDA94": "static",
+    "AGD66": "static",
+    "AGD84": "static",
+    "ATRF2014": "dynamic",
+    "ITRF88": "dynamic",
+    "ITRF89": "dynamic",
+    "ITRF90": "dynamic",
+    "ITRF91": "dynamic",
+    "ITRF92": "dynamic",
+    "ITRF93": "dynamic",
+    "ITRF94": "dynamic",
+    "ITRF96": "dynamic",
+    "ITRF97": "dynamic",
+    "ITRF2000": "dynamic",
+    "ITRF2005": "dynamic",
+    "ITRF2008": "dynamic",
+    "ITRF2014": "dynamic",
+    "ITRF2020": "dynamic",
+    "WGS84 (G2296)": "dynamic",
+    "WGS84 (G2139)": "dynamic",
+    "WGS84 (G1762)": "dynamic",
+    "WGS84 (G1674)": "dynamic",
+    "WGS84 (G1150)": "dynamic",
+    "WGS84 (G873)": "dynamic",
+    "WGS84 (G730)": "dynamic",
+    "WGS84 (Transit)": "dynamic",
+    "WGS84 Ensemble": "dynamic",
+    }
+
+# Reference frames that are in Australia
+AUS_FRAMES = ("GDA94", "GDA2020", "AGD66", "AGD84", "ATRF2020")
+
+# WGS84 reference frames
+WGS84_FRAMES = ["WGS84 (G2296)",
+                "WGS84 (G2139)",
+                "WGS84 (G1762)",
+                "WGS84 (G1674)",
+                "WGS84 (G1150)",
+                "WGS84 (G873)",
+                "WGS84 (G730)",
+                "WGS84 (Transit)",
+                "WGS84 Ensemble"]
+
 # Setup for transformation paths
-with open("other_files/transformation_routes_v3.json", "r", encoding="utf-8") as f:
+transform_path = files("other_files") / "transformation_routes_v3.json"
+
+with transform_path.open("r") as f:
     ROUTING = json.load(f)
 
 ROUTES = ROUTING["routes"]
 DIRECT = ROUTING["direct_pairs"]
 
+# Create plates and EEZ paths
+plates_path = files("other_files") / "MORVEL56_plates.dig"
+eez_path = files("other_files") / "EEZ_australia_approx.dig"
+
 # Build plate index for plate motion transformations
-PLATES = pp.build_plate_index("other_files/MORVEL56_plates.dig")
-EEZ_PLATE = pp.build_plate_index("other_files/EEZ_australia_approx.dig")
+PLATES = pp.build_plate_index(plates_path)
+EEZ_PLATE = pp.build_plate_index(eez_path)
 
 def mga_parse(ref):
     """
@@ -36,11 +107,9 @@ def mga_parse(ref):
     :return: Reference frame changed if needed
     :rtype: str
     """
-    mga_names = {"MGA94": "GDA94",
-                "MGA2020": "GDA2020"}
     
-    if ref in mga_names:
-        ref = mga_names[ref]
+    if ref in MGA_NAMES:
+        ref = MGA_NAMES[ref]
 
     return ref
 
@@ -86,21 +155,10 @@ def ref_frame_parser(ref_name):
     :rtype: str
     """
 
-    # Dictionary of reference frame names
-    ref_names = {"wgs84 (g2296)": "wgs84g2296",
-                 "wgs84 (g2139)": "wgs84g2139",
-                 "wgs84 (g1762)": "wgs84g1762",
-                 "wgs84 (g1674)": "wgs84g1674",
-                 "wgs84 (g1150)": "wgs84g1150",
-                 "wgs84 (g873)": "wgs84g873",
-                 "wgs84 (g730)": "wgs84g730",
-                 "wgs84 (transit)": "wgs84trans",
-                 "wgs84 ensemble": "wgs84ensemble"}
-
     ref_name = ref_name.lower()
 
-    if ref_name in ref_names:
-        ref_name = ref_names[ref_name]
+    if ref_name in FRAME_PARSE:
+        ref_name = FRAME_PARSE[ref_name]
 
     return ref_name
 
@@ -118,39 +176,8 @@ def transformation_type(path):
     :rtype: str
     """
 
-    # Reference frame types dictionary
-    trans_types = {  "GDA2020": "static",
-    "GDA94": "static",
-    "AGD66": "static",
-    "AGD84": "static",
-    "ATRF2014": "dynamic",
-    "ITRF88": "dynamic",
-    "ITRF89": "dynamic",
-    "ITRF90": "dynamic",
-    "ITRF91": "dynamic",
-    "ITRF92": "dynamic",
-    "ITRF93": "dynamic",
-    "ITRF94": "dynamic",
-    "ITRF96": "dynamic",
-    "ITRF97": "dynamic",
-    "ITRF2000": "dynamic",
-    "ITRF2005": "dynamic",
-    "ITRF2008": "dynamic",
-    "ITRF2014": "dynamic",
-    "ITRF2020": "dynamic",
-    "WGS84 (G2296)": "dynamic",
-    "WGS84 (G2139)": "dynamic",
-    "WGS84 (G1762)": "dynamic",
-    "WGS84 (G1674)": "dynamic",
-    "WGS84 (G1150)": "dynamic",
-    "WGS84 (G873)": "dynamic",
-    "WGS84 (G730)": "dynamic",
-    "WGS84 (Transit)": "dynamic",
-    "WGS84 Ensemble": "dynamic",
-    }
-
-    start_type = trans_types[path[0]]
-    end_type = trans_types[path[-1]]
+    start_type = TRANS_TYPE[path[0]]
+    end_type = TRANS_TYPE[path[-1]]
 
     return f"{start_type}_to_{end_type}"
 
@@ -481,7 +508,7 @@ def universal_transform(x, y, z, from_ref, to_ref, from_epoch=None, to_epoch=Non
     :rtype: dict
     """
     # MGA can not be enters as from_ref for xyz
-    if from_ref.lower() in ("mga94", "mga2020"):
+    if from_ref.lower() in PROJECTED_FRAMES:
         raise ValueError("Source reference frame can not be MGA when using cartesian coordinates (xyz).")
 
     # Find path for transformation and check frames given are real
@@ -522,31 +549,19 @@ def universal_transform(x, y, z, from_ref, to_ref, from_epoch=None, to_epoch=Non
     if plate_motion == "aus" and plate_id != "AU" and not ignore_errors:
         raise ValueError("Point is not on the australia plate. Can not use Australian plate motion.")
     
-    # If using any australian reference frame, check point is within Australia's EEZ
-    aus_frames = ("GDA94", "GDA2020", "AGD66", "AGD84", "ATRF2020")
-    
-    if (from_ref in aus_frames) or (to_ref in aus_frames):
+    # If using any australian reference frame, check point is within Australia's EEZ   
+    if (from_ref in AUS_FRAMES) or (to_ref in AUS_FRAMES):
         plate_id = pp.plate_from_xyz(x, y, z, EEZ_PLATE)
 
         if plate_id is None and not ignore_errors:
             raise ValueError("Point is not within Australia's EEZ while using Austalian refernce frame.")
 
-    wgs84_frames = ["WGS84 (G2296)",
-                    "WGS84 (G2139)",
-                    "WGS84 (G1762)",
-                    "WGS84 (G1674)",
-                    "WGS84 (G1150)",
-                    "WGS84 (G873)",
-                    "WGS84 (G730)",
-                    "WGS84 (Transit)",
-                    "WGS84 Ensemble"]
-
     # Check for WGS84 and change date to middle of year
-    if from_ref in wgs84_frames:
+    if from_ref in WGS84_FRAMES:
 
         from_epoch = date(from_epoch.year, 6, 30)
 
-    if to_ref in wgs84_frames:
+    if to_ref in WGS84_FRAMES:
 
         to_epoch = date(to_epoch.year, 6, 30)
 
@@ -557,10 +572,10 @@ def universal_transform(x, y, z, from_ref, to_ref, from_epoch=None, to_epoch=Non
     if return_type.lower() not in ("xyz", "llh", "enu"):
         raise ValueError("return_type must be either \"xyz\", \"llh\", \"enu\"")
     
-    if (return_type.lower() == "enu") and (to_ref.lower() not in ("mga94", "mga2020")):
+    if (return_type.lower() == "enu") and (to_ref.lower() not in PROJECTED_FRAMES):
         raise ValueError("Can only give an enu result if to_ref is an MGA reference frame.")
     
-    if (return_type.lower() != "enu") and (to_ref.lower() in ("mga94", "mga2020")):
+    if (return_type.lower() != "enu") and (to_ref.lower() in PROJECTED_FRAMES):
         raise ValueError("Can only return mga coordinates in enu. return_type must be \"enu\"")
 
     #Finished input validation
@@ -656,7 +671,7 @@ def universal_transform_llh(lat, lon, el_height, from_ref, to_ref, from_epoch=No
     :rtype: dict
     """
     # Can not have mga as from_ref for llh input
-    if from_ref.lower() in ("mga94", "mga2020"):
+    if from_ref.lower() in PROJECTED_FRAMES:
         raise ValueError("Source reference frame can not be MGA when using geographic coordinates (llh).")
 
     # Input validation of lat, lon, el_height
@@ -674,10 +689,10 @@ def universal_transform_llh(lat, lon, el_height, from_ref, to_ref, from_epoch=No
     if return_type.lower() not in ("xyz", "llh", "enu"):
         raise ValueError("return_type must be either \"xyz\", \"llh\", \"enu\"")
     
-    if (return_type.lower() == "enu") and (to_ref.lower() not in ("mga94", "mga2020")):
+    if (return_type.lower() == "enu") and (to_ref.lower() not in PROJECTED_FRAMES):
         raise ValueError("Can only give an enu result if to_ref is an MGA reference frame.")
     
-    if (return_type.lower() != "enu") and (to_ref.lower() in ("mga94", "mga2020")):
+    if (return_type.lower() != "enu") and (to_ref.lower() in PROJECTED_FRAMES):
         raise ValueError("Can only return mga coordinates in enu. return_type must be \"enu\"")
 
     # Finished input validation
@@ -762,7 +777,7 @@ def universal_transform_enu(east, north, el_height, zone, from_ref, to_ref, from
     :rtype: dict
     """
     # Can not have mga as from_ref for llh input
-    if from_ref.lower() not in ("mga94", "mga2020"):
+    if from_ref.lower() not in PROJECTED_FRAMES:
         raise ValueError("Source reference frame can only be MGA when using projected coordinates (enu). from_ref must be \"MGA94\" or \"MGA2020\".")
 
     # Input validation of lat, lon, el_height
@@ -782,10 +797,10 @@ def universal_transform_enu(east, north, el_height, zone, from_ref, to_ref, from
     if return_type.lower() not in ("xyz", "llh", "enu"):
         raise ValueError("return_type must be either \"xyz\", \"llh\", \"enu\"")
     
-    if (return_type.lower() == "enu") and (to_ref.lower() not in ("mga94", "mga2020")):
+    if (return_type.lower() == "enu") and (to_ref.lower() not in PROJECTED_FRAMES):
         raise ValueError("Can only give an enu result if to_ref is an MGA reference frame.")
     
-    if (return_type.lower() != "enu") and (to_ref.lower() in ("mga94", "mga2020")):
+    if (return_type.lower() != "enu") and (to_ref.lower() in PROJECTED_FRAMES):
         raise ValueError("Can only return mga coordinates in enu. return_type must be \"enu\"")
 
     # Finished input validation
