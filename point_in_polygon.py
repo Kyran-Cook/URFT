@@ -26,7 +26,7 @@ from importlib.resources import files
 PLATE_ID_RE = re.compile(r"^[A-Z]{2}$")
 
 DEFAULT_PLATES_FILE = files("other_files") / "MORVEL56_plates.dig"
-DEFAULT_POLES_FILE = files("other_files") / "other_files/NNR-MORVEL56_poles.txt"
+DEFAULT_POLES_FILE = files("other_files") / "NNR-MORVEL56_poles.txt"
 
 def lon_to_180(lon):
     """
