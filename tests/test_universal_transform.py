@@ -1,5 +1,10 @@
 import unittest
-from .. import universal_transform
+import sys
+import os
+
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
+import universal_transform
 
 class TestUniversalTransform(unittest.TestCase):
 
@@ -8,7 +13,7 @@ class TestUniversalTransform(unittest.TestCase):
         self.assertIs(universal_transform.mga_parse("ITRF2008"), "ITRF2008")
 
     def test_resolve_path(self):
-        self.assertIs(universal_transform.resolve_path("GDA94", "WGS84 (Transit)"), )
+        self.assertListEqual(universal_transform.resolve_path("GDA94", "WGS84 (Transit)"), ['GDA94', 'ITRF2008', 'ITRF90', 'WGS84 (Transit)'])
     
 if __name__ == '__main__':
     unittest.main()
